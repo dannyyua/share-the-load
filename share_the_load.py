@@ -25,10 +25,11 @@ def clear_console():
     cprint("")
 
 # Wait for user to press a key
-def prompt_keypress():
+def prompt_keypress(clear_console=True):
     print("\nPress any key to continue...")
     msvcrt.getch()
-    clear_console()
+    if clear_console:
+        clear_console()
 
 # Returns a dict where each entry contains all payers info for a given split
 def get_split_dict():
@@ -68,9 +69,8 @@ def process_csv():
             print(f"{id}: {', '.join([f'{p[0]} ({p[1]}%)' for p in payers])}")
         print()
 
-        print("The CSV file will open, please replace every 'EDIT_ME' in the last column 'Split IDs' with an appropriate Split ID from the above list, or 0 to ignore a row. Save and close when done.")
-        print("Press any key to open the CSV file...")
-        msvcrt.getch()
+        print("The payments CSV file will open, please update the newly added 'Split IDs' column values using the IDs listed above (or leave as 0 to ignore a row). Save and close when done.")
+        prompt_keypress(False)
         print("Opening CSV file for editing...")
         subprocess.run([temp_file], shell=True)
 
@@ -88,7 +88,7 @@ def process_csv():
     for name, amount in totals.items():
         print(f"{name} pays: ${amount:.2f}")
     if not totals:
-        print("No amounts calculated. Please retry and follow the instructions carefully.")
+        print("No amounts calculated. Please ensure the 'Split IDs' column has been updated, otherwise calculations will not work.")
     prompt_keypress()
 
 # Create a payer with a given name
