@@ -44,27 +44,26 @@ def calculate_amounts(ps_dict):
         for row in reader:
             rows.append(row)
 
-        # TODO: Find a better way to identify the amount column
-        amount_indx = -1
-        for i in range(len(rows[1])):
-            if re.match(r'\d+\.\d+', rows[1][i]):
-                amount_indx = i
-                break
-
-        if amount_indx == -1:
-            raise ValueError("Could not find amount column in CSV file")
-
         totals_dict = {}
 
         for i in range(1, len(rows)):
-            amount = float(rows[i][amount_indx])
             split_id = rows[i][-1]
 
-            if split_id not in ps_dict and split_id != '0':
-                print(f"Warning: Unknown Split ID '{split_id}' found in row {i+1}. Ignoring row. Please update the Split ID if this row should be included.")
+            # Ignore if split ID is 0
+            if split_id == '0':
                 continue
 
-            if split_id == '0':
+            # Try to find a currency amount in the row
+            matches = [bool(re.match(r'^-?\d+\.?\d*$', val)) for val in rows[i][:-1]]
+            if True not in matches:
+                print(f"Warning: No transaction amount found in row {i+1}. Ignoring row.")
+                continue
+
+            amount_indx = matches.index(True)
+            amount = float(rows[i][amount_indx])
+
+            if split_id not in ps_dict:
+                print(f"Warning: Unknown Split ID '{split_id}' found in row {i+1}. Ignoring row. Please update the Split ID if this row should be included.")
                 continue
 
             for (name, percent) in ps_dict[split_id]:
