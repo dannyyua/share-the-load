@@ -6,6 +6,9 @@ from globals import temp_file
 
 # Copy the given CSV to a temp CSV file for assigning splits to
 def transform_csv(filename):
+    # Trim quotations
+    filename = filename.strip('"')
+
     if not filename.endswith('.csv'):
         raise ValueError("File must be a CSV file")
     if not os.path.exists(filename):
