@@ -25,10 +25,10 @@ def clear_console():
     cprint("")
 
 # Wait for user to press a key
-def prompt_keypress(clear_console=True):
+def prompt_keypress(clear=True):
     print("\nPress any key to continue...")
     msvcrt.getch()
-    if clear_console:
+    if clear:
         clear_console()
 
 # Returns a dict where each entry contains all payers info for a given split
