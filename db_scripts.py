@@ -1,7 +1,7 @@
 create_payers_table = """
 CREATE TABLE IF NOT EXISTS Payers (
     payer_id    INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT
+    name        TEXT COLLATE NOCASE UNIQUE
 )
 """
 

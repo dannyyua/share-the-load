@@ -99,7 +99,12 @@ def add_payer():
         name = input("Enter the name of the new Payer (or leave empty to finish): ")
         if not name:
             break
-        cursor.execute("INSERT INTO Payers(name) VALUES (?)", (name,)) # Comma to make it a tuple
+        try:
+            cursor.execute("INSERT INTO Payers(name) VALUES (?)", (name,)) # Comma to make it a tuple
+        except sqlite3.IntegrityError:
+            print(f"Payer {name} already exists.")
+            continue
+
         print(f"Added new Payer {name}.")
 
     clear_console()
