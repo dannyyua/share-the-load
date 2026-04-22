@@ -60,7 +60,7 @@ def process_csv():
 
     user_input = input(prompt)
 
-    if user_input not in ['e', 'r']:
+    if user_input not in ['e', 'r'] or not os.path.isfile(temp_file):
         transform_csv(user_input)
 
     if user_input != 'r':
