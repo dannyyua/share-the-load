@@ -88,7 +88,7 @@ def process_csv():
     for name, amount in totals.items():
         print(f"{name} {'pays' if amount >= 0 else 'is owed'}: ${abs(amount):,.2f}")
     if not totals:
-        print("No amounts calculated. Please ensure the 'Split IDs' column has been updated, otherwise calculations will not work.")
+        print("No amounts calculated. Please ensure the 'Split IDs' column has been updated and the file is saved, otherwise calculations will not work.")
     prompt_keypress()
 
 # Create a payer with a given name

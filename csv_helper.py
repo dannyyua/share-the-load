@@ -28,7 +28,7 @@ def transform_csv(filename):
 
     rows[0].append("Split IDs")
     for row in rows[1:]:
-        row.append('EDIT_ME')
+        row.append('0')
     
     with open(temp_file, 'w', newline='') as file:
         writer = csv.writer(file)
