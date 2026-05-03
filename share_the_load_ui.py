@@ -1,9 +1,10 @@
 import sys
 
-from PySide6.QtWidgets import QApplication, QWidget, QMessageBox, QGroupBox, QVBoxLayout, QHBoxLayout, QProgressBar, QPushButton, QTableWidget, QStatusBar
+from PySide6.QtWidgets import QApplication, QWidget, QMessageBox, QGroupBox, QVBoxLayout, QHBoxLayout, QProgressBar, QPushButton, QTableWidget, QMainWindow, QLabel, QMenu
+from PySide6.QtGui import QKeySequence
 from __feature__ import snake_case
 
-class ShareTheLoad(QWidget):
+class ShareTheLoad(QMainWindow):
     def __init__(self):
         super().__init__()
 
@@ -20,46 +21,52 @@ class ShareTheLoad(QWidget):
         self.payments_table = QTableWidget()
 
         self.progress_bar = QProgressBar()
-        self.status_bar = QStatusBar()
 
-        self.main_menu_box = QGroupBox("Main Menu")
-        self.payers_box = QGroupBox("Payers")
-        self.splits_box = QGroupBox("Splits")
-        self.payments_box = QGroupBox("View Payments")
+        main_menu_box = QGroupBox("Main Menu")
+        payers_box = QGroupBox("Payers")
+        splits_box = QGroupBox("Splits")
+        payments_box = QGroupBox("View Payments")
 
-        self.process_csv_layout = QVBoxLayout(self.main_menu_box)
-        self.process_csv_layout.add_widget(self.upload_csv_button)
-        self.process_csv_layout.add_widget(self.calculate_button)
+        process_csv_layout = QVBoxLayout(main_menu_box)
+        process_csv_layout.add_widget(self.upload_csv_button)
+        process_csv_layout.add_widget(self.calculate_button)
         
-        self.payers_buttons_layout = QHBoxLayout()
-        self.payers_buttons_layout.add_widget(self.payers_add_button)
-        self.payers_buttons_layout.add_widget(self.payers_edit_button)
-        self.payers_buttons_layout.add_widget(self.payers_delete_button)
-        self.payers_layout = QVBoxLayout(self.payers_box)
-        self.payers_layout.add_widget(self.payers_table)
-        self.payers_layout.add_layout(self.payers_buttons_layout)
+        payers_buttons_layout = QHBoxLayout()
+        payers_buttons_layout.add_widget(self.payers_add_button)
+        payers_buttons_layout.add_widget(self.payers_edit_button)
+        payers_buttons_layout.add_widget(self.payers_delete_button)
+        payers_layout = QVBoxLayout(payers_box)
+        payers_layout.add_widget(self.payers_table)
+        payers_layout.add_layout(payers_buttons_layout)
 
-        self.splits_buttons_layout = QHBoxLayout()
-        self.splits_buttons_layout.add_widget(self.splits_add_button)
-        self.splits_buttons_layout.add_widget(self.splits_edit_button)
-        self.splits_buttons_layout.add_widget(self.splits_delete_button)
-        self.splits_layout = QVBoxLayout(self.splits_box)
-        self.splits_layout.add_widget(self.splits_table)
-        self.splits_layout.add_layout(self.splits_buttons_layout)
+        splits_buttons_layout = QHBoxLayout()
+        splits_buttons_layout.add_widget(self.splits_add_button)
+        splits_buttons_layout.add_widget(self.splits_edit_button)
+        splits_buttons_layout.add_widget(self.splits_delete_button)
+        splits_layout = QVBoxLayout(splits_box)
+        splits_layout.add_widget(self.splits_table)
+        splits_layout.add_layout(splits_buttons_layout)
 
-        self.payments_layout = QVBoxLayout(self.payments_box)
-        self.payments_layout.add_widget(self.payments_table)
+        payments_layout = QVBoxLayout(payments_box)
+        payments_layout.add_widget(self.payments_table)
 
-        self.top_row_layout = QHBoxLayout()
-        self.main_layout = QVBoxLayout(self)
+        top_row_layout = QHBoxLayout()
+        main_layout = QVBoxLayout()
 
-        self.top_row_layout.add_widget(self.main_menu_box)
-        self.top_row_layout.add_widget(self.payers_box)
-        self.top_row_layout.add_widget(self.splits_box)
-        self.main_layout.add_layout(self.top_row_layout)
-        self.main_layout.add_widget(self.payments_box)
-        self.main_layout.add_widget(self.progress_bar)
-        self.main_layout.add_widget(self.status_bar)
+        top_row_layout.add_widget(main_menu_box)
+        top_row_layout.add_widget(payers_box)
+        top_row_layout.add_widget(splits_box)
+        main_layout.add_layout(top_row_layout)
+        main_layout.add_widget(payments_box)
+        main_layout.add_widget(self.progress_bar)
+
+        self.set_central_widget(QWidget())
+        self.central_widget().set_layout(main_layout)
+        self.status_bar().add_widget(QLabel("test"))
+
+        file_menu = QMenu("File")
+        file_menu.add_action("Upload a CSV", QKeySequence.Open)
+        self.menu_bar().add_menu(file_menu)
 
         QMessageBox.information(self, "First Launch", "Welcome to Share the Load! If this is your first time using the app, please start by adding a Payer and a Split, before processing any payments.")
 
