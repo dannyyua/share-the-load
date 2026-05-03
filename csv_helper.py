@@ -4,10 +4,10 @@ import csv
 import re
 from globals import temp_file
 
-def get_csv_rows():
+def get_csv_rows(path=temp_file):
     # TODO: Yield
     # TODO: Check if file is not empty
-    with open(temp_file, 'r', newline='') as file:
+    with open(path, 'r', newline='') as file:
         reader = csv.reader(file)
 
         rows = []
