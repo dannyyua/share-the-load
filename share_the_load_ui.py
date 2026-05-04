@@ -1,15 +1,17 @@
 import sys
 
-from PySide6.QtWidgets import QApplication, QWidget, QMessageBox, QGroupBox, QVBoxLayout, QHBoxLayout, QProgressBar, QPushButton, QTableWidget, QMainWindow, QLabel, QMenu, QFileDialog, QTableWidgetItem, QRadioButton
+from PySide6.QtWidgets import QApplication, QWidget, QMessageBox, QGroupBox, QVBoxLayout, QHBoxLayout, QProgressBar, QPushButton, QTableWidget, QMainWindow, QLabel, QMenu, QFileDialog, QTableWidgetItem, QRadioButton, QInputDialog, QLineEdit
 from PySide6.QtGui import QKeySequence
 from PySide6.QtCore import QThread, Qt
 from __feature__ import snake_case # type: ignore
 from csv_helper import get_csv_rows
 from custom_widgets import NoScrollComboBox
+import db_helper as db
 
 class ShareTheLoad(QMainWindow):
-    def __init__(self):
+    def __init__(self, cursor):
         super().__init__()
+        self.cursor = cursor
 
         # UI Elements
         self.upload_csv_button = QPushButton("Upload a CSV")
@@ -22,9 +24,11 @@ class ShareTheLoad(QMainWindow):
 
         self.payers_table = QTableWidget()
         self.payers_table.horizontal_header().set_stretch_last_section(True)
+        self.payers_table.set_selection_behavior(QTableWidget.SelectRows)
         self.payers_table.set_column_count(2)
         self.payers_table.vertical_header().hide()
         self.payers_table.set_horizontal_header_labels(["ID", "Name"])
+        self.refresh_payers()
         self.payers_add_button = QPushButton("Add")
         self.payers_edit_button = QPushButton("Edit")
         self.payers_edit_button.set_enabled(False)
@@ -33,6 +37,10 @@ class ShareTheLoad(QMainWindow):
 
         self.splits_table = QTableWidget()
         self.splits_table.horizontal_header().set_stretch_last_section(True)
+        self.splits_table.set_selection_behavior(QTableWidget.SelectRows)
+        self.splits_table.set_column_count(2)
+        self.splits_table.vertical_header().hide()
+        self.splits_table.set_horizontal_header_labels(["ID", "Distribution"])
         self.splits_add_button = QPushButton("Add")
         self.splits_edit_button = QPushButton("Edit")
         self.splits_edit_button.set_enabled(False)
@@ -134,7 +142,9 @@ class ShareTheLoad(QMainWindow):
 
         self.save_results_button.clicked.connect(self.save_results)
 
-        self.payers_add_button.clicked.connect(self.add_payer)
+        self.payers_add_button.clicked.connect(lambda: self.update_payer())
+        self.payers_edit_button.clicked.connect(lambda: self.update_payer(True))
+        self.payers_delete_button.clicked.connect(self.delete_payer)
         self.payers_table.itemSelectionChanged.connect(self.update_payers_buttons_state)
         self.splits_table.itemSelectionChanged.connect(self.update_splits_buttons_state)
 
@@ -199,13 +209,36 @@ class ShareTheLoad(QMainWindow):
         QMessageBox.information(self, "Calculation Results", "Results:\n\nTBD")
 
     def save_results(self):
-        if (self.file_save_selector.exec()):
+        if self.file_save_selector.exec():
             # with open(self.file_save_selector.selected_files()[0], "w") as f:
             #     f.write("TBD")
             pass
 
-    def add_payer(self):
-        self.payers_table.insert_row(self.payers_table.row_count())
+    def refresh_payers(self):
+        payers = db.get_payers()
+        self.payers_table.set_row_count(len(payers))
+        for i in range(len(payers)):
+            self.payers_table.set_item(i, 0, QTableWidgetItem(str(payers[i][0])))
+            self.payers_table.set_item(i, 1, QTableWidgetItem(payers[i][1]))
+
+    def update_payer(self, edit=False):
+        current_name = self.payers_table.selected_items()[1].text() if edit else ""
+        name, ok = QInputDialog.get_text(self, f"{'Edit' if edit else 'Add'} Payer", "Payer name:", QLineEdit.Normal, current_name)
+
+        if ok and name:
+            if edit: # Edit existing payer
+                id = self.payers_table.selected_items()[0].text()
+                db.update_payer(id, name)
+            else: # Add new payer
+                db.add_payer(name)
+
+        self.refresh_payers()
+
+    def delete_payer(self):
+        if QMessageBox.question(self, "Confirm Delete", "Are you sure you want to delete this payer? This cannot be undone.") == QMessageBox.Yes:
+            id = self.payers_table.selected_items()[0].text()
+            db.delete_payer(id)
+            self.refresh_payers()
 
     def update_payers_buttons_state(self):
         has_selected = len(self.payers_table.selected_items()) != 0
@@ -236,7 +269,9 @@ class ShareTheLoad(QMainWindow):
         self.payments_table.resize_columns_to_contents()
 
 if __name__ == "__main__":
+    cursor = db.start_db()
+
     app = QApplication(sys.argv)
-    main_window = ShareTheLoad()
+    main_window = ShareTheLoad(cursor)
     main_window.show()
     sys.exit(app.exec())
