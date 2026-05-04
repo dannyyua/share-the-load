@@ -1,10 +1,11 @@
 import sys
 
-from PySide6.QtWidgets import QApplication, QWidget, QMessageBox, QGroupBox, QVBoxLayout, QHBoxLayout, QProgressBar, QPushButton, QTableWidget, QMainWindow, QLabel, QMenu, QFileDialog, QTableWidgetItem
+from PySide6.QtWidgets import QApplication, QWidget, QMessageBox, QGroupBox, QVBoxLayout, QHBoxLayout, QProgressBar, QPushButton, QTableWidget, QMainWindow, QLabel, QMenu, QFileDialog, QTableWidgetItem, QRadioButton
 from PySide6.QtGui import QKeySequence
 from PySide6.QtCore import QThread
 from __feature__ import snake_case # type: ignore
 from csv_helper import get_csv_rows
+from custom_widgets import NoScrollComboBox
 
 class ShareTheLoad(QMainWindow):
     def __init__(self):
@@ -40,6 +41,12 @@ class ShareTheLoad(QMainWindow):
 
         self.payments_table = QTableWidget()
         self.payments_table.horizontal_header().set_stretch_last_section(True)
+        self.payments_auto_fit_columns_button = QPushButton("Auto-Fit Columns")
+        self.payments_auto_fit_columns_button.set_enabled(False)
+        self.payments_edit_mode_label = QLabel("Edit Mode:")
+        self.payments_dropdown_edit = QRadioButton("Dropdown")
+        self.payments_text_edit = QRadioButton("Text")
+        self.payments_dropdown_edit.set_checked(True)
 
         self.file_selector = QFileDialog()
         self.file_selector.set_mime_type_filters(["text/csv"])
@@ -84,6 +91,13 @@ class ShareTheLoad(QMainWindow):
 
         payments_layout = QVBoxLayout(payments_box)
         payments_layout.add_widget(self.payments_table)
+        payments_edit_mode_layout = QHBoxLayout()
+        payments_edit_mode_layout.add_widget(self.payments_auto_fit_columns_button)
+        payments_edit_mode_layout.add_stretch()
+        payments_edit_mode_layout.add_widget(self.payments_edit_mode_label)
+        payments_edit_mode_layout.add_widget(self.payments_dropdown_edit)
+        payments_edit_mode_layout.add_widget(self.payments_text_edit)
+        payments_layout.add_layout(payments_edit_mode_layout)
 
         top_row_layout = QHBoxLayout()
         main_layout = QVBoxLayout()
@@ -124,6 +138,7 @@ class ShareTheLoad(QMainWindow):
         self.payers_table.itemSelectionChanged.connect(self.update_payers_buttons_state)
         self.splits_table.itemSelectionChanged.connect(self.update_splits_buttons_state)
 
+        self.payments_auto_fit_columns_button.clicked.connect(self.auto_fit_columns)
         self.payments_table.itemChanged.connect(self.set_payments_dirty)
 
         QMessageBox.information(self, "First Launch", "Welcome to Share the Load! If this is your first time using the app, please start by adding a Payer and a Split, before processing any payments.")
@@ -140,9 +155,9 @@ class ShareTheLoad(QMainWindow):
             rows = get_csv_rows(self.file_selector.selected_files()[0])
             
             self.payments_table.set_row_count(len(rows)-1)
-            self.payments_table.set_column_count(len(rows[0]))
+            self.payments_table.set_column_count(len(rows[0]) + 1)
 
-            self.payments_table.set_horizontal_header_labels(rows[0])
+            self.payments_table.set_horizontal_header_labels(rows[0] + ["Splits"])
 
             for i in range(1, len(rows)):
                 # Just for fun :)
@@ -150,12 +165,16 @@ class ShareTheLoad(QMainWindow):
                 
                 for j in range(len(rows[i])):
                     self.payments_table.set_item(i-1, j, QTableWidgetItem(rows[i][j]))
+                splits_dropdown = NoScrollComboBox()
+                splits_dropdown.add_items(["1. test1", "2. test2"])
+                self.payments_table.set_cell_widget(i-1, len(rows[i]), splits_dropdown)
 
                 self.set_progress(i / (len(rows)-1) * 100)
 
             self.upload_csv_button.set_enabled(True)
             self.calculate_button.set_enabled(True)
             self.save_csv_button.set_enabled(True)
+            self.payments_auto_fit_columns_button.set_enabled(True)
 
             self.set_status("Successfully uploaded CSV, please edit the right-most column 'Splits' to assign splits to each row.")
 
@@ -210,6 +229,9 @@ class ShareTheLoad(QMainWindow):
     def set_payments_dirty(self):
         self.dirty_payments = True
         self.save_results_button.set_enabled(False)
+
+    def auto_fit_columns(self):
+        self.payments_table.resize_columns_to_contents()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
