@@ -2,7 +2,7 @@ import sys
 
 from PySide6.QtWidgets import QApplication, QWidget, QMessageBox, QGroupBox, QVBoxLayout, QHBoxLayout, QProgressBar, QPushButton, QTableWidget, QMainWindow, QLabel, QMenu, QFileDialog, QTableWidgetItem, QRadioButton
 from PySide6.QtGui import QKeySequence
-from PySide6.QtCore import QThread
+from PySide6.QtCore import QThread, Qt
 from __feature__ import snake_case # type: ignore
 from csv_helper import get_csv_rows
 from custom_widgets import NoScrollComboBox
@@ -164,7 +164,9 @@ class ShareTheLoad(QMainWindow):
                 QThread.msleep(50)
                 
                 for j in range(len(rows[i])):
-                    self.payments_table.set_item(i-1, j, QTableWidgetItem(rows[i][j]))
+                    new_item = QTableWidgetItem(rows[i][j])
+                    new_item.set_flags(new_item.flags() & ~Qt.ItemIsEditable)
+                    self.payments_table.set_item(i-1, j, new_item)
                 splits_dropdown = NoScrollComboBox()
                 splits_dropdown.add_items(["1. test1", "2. test2"])
                 self.payments_table.set_cell_widget(i-1, len(rows[i]), splits_dropdown)
