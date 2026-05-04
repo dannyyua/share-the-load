@@ -5,7 +5,7 @@ from PySide6.QtGui import QKeySequence
 from PySide6.QtCore import QThread, Qt
 from __feature__ import snake_case # type: ignore
 from csv_helper import get_csv_rows
-from custom_widgets import NoScrollComboBox
+from custom_widgets import NoScrollComboBox, SplitsModal
 import db_helper as db
 
 class ShareTheLoad(QMainWindow):
@@ -157,6 +157,18 @@ class ShareTheLoad(QMainWindow):
 
         QMessageBox.information(self, "First Launch", "Welcome to Share the Load! If this is your first time using the app, please start by adding a Payer and a Split, before processing any payments.")
 
+    def get_grouped_splits(self):
+        payers = db.get_payers()
+        payers_dict = {p[0]: p[1] for p in payers}
+        ungrouped_splits = db.get_splits()
+        split_ids = set([s[1] for s in ungrouped_splits])
+        split_dict = {id: [] for id in split_ids}
+
+        for payer_id, split_id, percent in ungrouped_splits:
+            split_dict[split_id].append((payer_id, payers_dict[payer_id], percent))
+
+        return split_dict
+
     def upload_csv(self):
         if (self.file_selector.exec()):
             self.set_status("Reading uploaded CSV...")
@@ -173,6 +185,8 @@ class ShareTheLoad(QMainWindow):
 
             self.payments_table.set_horizontal_header_labels(rows[0] + ["Splits"])
 
+            payer_splits = self.get_grouped_splits()
+
             for i in range(1, len(rows)):
                 # Just for fun :)
                 QThread.msleep(50)
@@ -182,7 +196,7 @@ class ShareTheLoad(QMainWindow):
                     new_item.set_flags(new_item.flags() & ~Qt.ItemIsEditable)
                     self.payments_table.set_item(i-1, j, new_item)
                 splits_dropdown = NoScrollComboBox()
-                splits_dropdown.add_items(["1. test1", "2. test2"])
+                splits_dropdown.add_items([f"({split_id}) {', '.join([f'{payer_name} ({percent}%)' for _, payer_name, percent in payer_splits])}" for split_id, payer_splits in payer_splits.items()])
                 self.payments_table.set_cell_widget(i-1, len(rows[i]), splits_dropdown)
 
                 self.set_progress(i / (len(rows)-1) * 100)
@@ -236,33 +250,70 @@ class ShareTheLoad(QMainWindow):
             else: # Add new payer
                 db.add_payer(name)
 
-        self.refresh_payers()
+        self.refresh_tables()
 
     def delete_payer(self):
         if QMessageBox.question(self, "Confirm Delete", "Are you sure you want to delete this payer? This cannot be undone.") == QMessageBox.Yes:
             id = self.payers_table.selected_items()[0].text()
             db.delete_payer(id)
-            self.refresh_payers()
+            self.refresh_tables()
 
     def refresh_splits(self):
-        payers = db.get_payers()
-        payers_dict = {p[0]: p[1] for p in payers}
-        ungrouped_splits = db.get_splits()
-        split_ids = set([s[1] for s in ungrouped_splits])
-        splits = {id: [] for id in split_ids}
-        for s in ungrouped_splits:
-            splits[s[1]].append((s[0], s[2]))
+        # payers = db.get_payers()
+        # payers_dict = {p[0]: p[1] for p in payers}
+        # ungrouped_splits = db.get_splits()
+        # split_ids = set([s[1] for s in ungrouped_splits])
+        # splits = {id: [] for id in split_ids}
+        # for s in ungrouped_splits:
+        #     splits[s[1]].append((s[0], s[2]))
 
-        self.splits_table.set_row_count(len(split_ids))
-        for i, (id, payer_splits) in enumerate(splits.items()):
-            self.splits_table.set_item(i, 0, QTableWidgetItem(str(id)))
-            self.splits_table.set_item(i, 1, QTableWidgetItem(", ".join([f"{payers_dict[payer_split[0]]} ({payer_split[1]}%)" for payer_split in payer_splits])))
+        split_dict = self.get_grouped_splits()
+        self.splits_table.set_row_count(len(split_dict))
+
+        for i, (split_id, payer_splits) in enumerate(split_dict.items()):
+            self.splits_table.set_item(i, 0, QTableWidgetItem(str(split_id)))
+            self.splits_table.set_item(i, 1, QTableWidgetItem(", ".join([f"{payer_name} ({percent}%)" for _, payer_name, percent in payer_splits])))
 
     def update_split(self, edit=False):
-        pass
+        splits_modal = SplitsModal(self)
+
+        payers = db.get_payers()
+
+        if edit:
+            id = self.splits_table.selected_items()[0].text()
+
+            splits = db.get_split_by_id(id)
+            splits_modal.set_payer_splits(payers, splits)
+        else:
+            splits_modal.set_payers(payers)
+
+        if splits_modal.exec():
+            payer_splits = splits_modal.get_payer_splits()
+            if payer_splits:
+                if edit:
+                    db.update_split(id, payer_splits)
+                else:
+                    db.add_split(payer_splits)
+
+                self.refresh_splits()
+                self.refresh_payments()
 
     def delete_split(self):
+        if QMessageBox.question(self, "Confirm Delete", "Are you sure you want to delete this split? This cannot be undone.") == QMessageBox.Yes:
+            id = self.splits_table.selected_items()[0].text()
+            db.delete_split(id)
+            self.refresh_splits()
+
+    # Only needs to refresh Splits column
+    def refresh_payments(self):
         pass
+        # for i in range(self.payments_table.row_count()):
+
+
+    def refresh_tables(self):
+        self.refresh_payers()
+        self.refresh_splits()
+        self.refresh_payments()
 
     def update_payers_buttons_state(self):
         has_selected = len(self.payers_table.selected_items()) != 0

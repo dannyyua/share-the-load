@@ -29,3 +29,21 @@ def delete_payer(id):
 
 def get_splits():
     return cursor.execute("SELECT * FROM Payer_Splits").fetchall()
+
+def get_split_by_id(id):
+    return cursor.execute("SELECT * FROM Payer_Splits WHERE split_id = ?", (id,)).fetchall()
+
+def add_split(payer_splits):
+    split_id = cursor.execute("INSERT INTO Splits DEFAULT VALUES RETURNING split_id").fetchone()[0]
+
+    for payer_id, percent in payer_splits.items():
+        cursor.execute("INSERT INTO Payer_Splits(split_id, payer_id, percent) VALUES (?, ?, ?)", (split_id, payer_id, percent))
+
+def update_split(id, payer_splits):
+    cursor.execute("DELETE FROM Payer_Splits WHERE split_id = ?", (id,))
+
+    for payer_id, percent in payer_splits.items():
+        cursor.execute("INSERT INTO Payer_Splits(split_id, payer_id, percent) VALUES (?, ?, ?)", (id, payer_id, percent))
+
+def delete_split(id):
+    cursor.execute("DELETE FROM Splits WHERE split_id = ?", (id,))
