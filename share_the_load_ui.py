@@ -41,6 +41,7 @@ class ShareTheLoad(QMainWindow):
         self.splits_table.set_column_count(2)
         self.splits_table.vertical_header().hide()
         self.splits_table.set_horizontal_header_labels(["ID", "Distribution"])
+        self.refresh_splits()
         self.splits_add_button = QPushButton("Add")
         self.splits_edit_button = QPushButton("Edit")
         self.splits_edit_button.set_enabled(False)
@@ -146,6 +147,9 @@ class ShareTheLoad(QMainWindow):
         self.payers_edit_button.clicked.connect(lambda: self.update_payer(True))
         self.payers_delete_button.clicked.connect(self.delete_payer)
         self.payers_table.itemSelectionChanged.connect(self.update_payers_buttons_state)
+        self.splits_add_button.clicked.connect(lambda: self.update_split())
+        self.splits_edit_button.clicked.connect(lambda: self.update_split(True))
+        self.splits_delete_button.clicked.connect(self.delete_split)
         self.splits_table.itemSelectionChanged.connect(self.update_splits_buttons_state)
 
         self.payments_auto_fit_columns_button.clicked.connect(self.auto_fit_columns)
@@ -239,6 +243,26 @@ class ShareTheLoad(QMainWindow):
             id = self.payers_table.selected_items()[0].text()
             db.delete_payer(id)
             self.refresh_payers()
+
+    def refresh_splits(self):
+        payers = db.get_payers()
+        payers_dict = {p[0]: p[1] for p in payers}
+        ungrouped_splits = db.get_splits()
+        split_ids = set([s[1] for s in ungrouped_splits])
+        splits = {id: [] for id in split_ids}
+        for s in ungrouped_splits:
+            splits[s[1]].append((s[0], s[2]))
+
+        self.splits_table.set_row_count(len(split_ids))
+        for i, (id, payer_splits) in enumerate(splits.items()):
+            self.splits_table.set_item(i, 0, QTableWidgetItem(str(id)))
+            self.splits_table.set_item(i, 1, QTableWidgetItem(", ".join([f"{payers_dict[payer_split[0]]} ({payer_split[1]}%)" for payer_split in payer_splits])))
+
+    def update_split(self, edit=False):
+        pass
+
+    def delete_split(self):
+        pass
 
     def update_payers_buttons_state(self):
         has_selected = len(self.payers_table.selected_items()) != 0

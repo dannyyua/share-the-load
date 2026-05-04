@@ -26,3 +26,6 @@ def update_payer(id, name):
 
 def delete_payer(id):
     cursor.execute("DELETE FROM Payers WHERE payer_id = ?", (id,))
+
+def get_splits():
+    return cursor.execute("SELECT * FROM Payer_Splits").fetchall()
