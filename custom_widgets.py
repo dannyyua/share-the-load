@@ -1,20 +1,16 @@
 from PySide6.QtWidgets import QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QHBoxLayout, QLabel, QVBoxLayout
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QModelIndex, Qt, QAbstractTableModel, QIdentityProxyModel
 from __feature__ import snake_case # type: ignore
 
-# QComboBox but scrolling will not change selection, and keyboard input will change selection without having to press Enter
+# QComboBox but scrolling will not change selection
 class NoScrollComboBox(QComboBox):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.highlighted.connect(self.auto_select_highlighted)
         self.set_focus_policy(Qt.StrongFocus)
 
     def wheel_event(self, e):
         if not self.has_focus():
             e.ignore()
-
-    def auto_select_highlighted(self, index):
-        self.set_current_index(index)
 
 class SplitsModalRow(QHBoxLayout):
     def __init__(self, id, payer_name, percent):
@@ -27,6 +23,7 @@ class SplitsModalRow(QHBoxLayout):
         self.percent_input = QDoubleSpinBox()
         self.percent_input.set_value(percent)
         self.percent_input.set_suffix("%")
+        self.percent_input.set_decimals(1)
         self.percent_input.set_range(0, 100)
         self.percent_input.set_enabled(self.checkbox.is_checked())
 
@@ -84,3 +81,93 @@ class SplitsModal(QDialog):
         
     def get_payer_splits(self):
         return {row.get_payer_id(): row.get_percent() for row in self.rows if row.is_enabled()}
+    
+# Custom table model for SQL query results
+class SqlTableModel(QAbstractTableModel):
+    def __init__(self, data, headers):
+        super().__init__()
+        self.refresh(data)
+        self._headers = headers
+
+    def row_count(self, parent=QModelIndex()):
+        return len(self._data) if not parent.is_valid() else 0
+    
+    def column_count(self, parent=QModelIndex()):
+        return 2
+    
+    def data(self, index, role=Qt.DisplayRole):
+        if role == Qt.DisplayRole:
+            return self._data[index.row()][index.column()]
+        return None
+    
+    def header_data(self, section, orientation, role):
+        if role == Qt.DisplayRole and orientation == Qt.Horizontal:
+            return self._headers[section]
+        return None
+    
+    def refresh(self, data):
+        self.begin_reset_model()
+        
+        self._data = data
+
+        self.end_reset_model()
+    
+# Special model for grouped Splits
+class SplitsModel(QAbstractTableModel):
+    def __init__(self, data, headers, payers_model):
+        super().__init__()
+        self.refresh(data)
+        self._headers = headers
+        self._payers_model = payers_model
+
+    def row_count(self, parent=QModelIndex()):
+        return len(self._data) if not parent.is_valid() else 0
+
+    def column_count(self, parent=QModelIndex()):
+        return 2
+    
+    def _get_payer_name_by_id(self, id):
+        for row in range(self._payers_model.row_count()):
+            if self._payers_model.data(self._payers_model.index(row, 0)) == id:
+                return self._payers_model.data(self._payers_model.index(row, 1))
+
+    def data(self, index, role=Qt.DisplayRole):
+        if role == Qt.DisplayRole:
+            if index.column() == 0:
+                return self._data[index.row()][0] # Split ID
+            else:
+                return ", ".join([f"{self._get_payer_name_by_id(payer_id)}: {percent}%" for payer_id, percent in self._data[index.row()][1]]) # Payer Name: Percent
+        elif role == Qt.EditRole:
+            if index.column() == 0:
+                return self._data[index.row()][0] # Split ID
+            else:
+                return [(payer_id, percent) for payer_id, percent in self._data[index.row()][1]] # List of (Payer ID, Percent)
+        return None
+
+    def header_data(self, section, orientation, role):
+        if role == Qt.DisplayRole and orientation == Qt.Horizontal:
+            return self._headers[section]
+        return None
+    
+    def refresh(self, data):
+        self.begin_reset_model()
+
+        self._data = []
+        split_dict = {split_id: [] for _, split_id, _ in data}
+        for split in data:
+            split_dict[split[1]].append((split[0], split[2]))
+        for split_id, payer_splits in split_dict.items():
+            self._data.append((split_id, payer_splits))
+
+        self.end_reset_model()
+
+# Special proxy that just changes the display text a bit for the splits dropdown
+class SplitsDropdownProxy(QIdentityProxyModel):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+    
+    def data(self, index, role=Qt.DisplayRole):
+        if role == Qt.DisplayRole:
+            return f"{super().data(index.sibling_at_column(0), role)}. {super().data(index.sibling_at_column(1), role)}"
+        elif role == Qt.EditRole:
+            return super().data(index.sibling_at_column(1), role)

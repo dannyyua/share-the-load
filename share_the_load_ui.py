@@ -1,17 +1,24 @@
 import sys
+import re
 
-from PySide6.QtWidgets import QApplication, QWidget, QMessageBox, QGroupBox, QVBoxLayout, QHBoxLayout, QProgressBar, QPushButton, QTableWidget, QMainWindow, QLabel, QMenu, QFileDialog, QTableWidgetItem, QRadioButton, QInputDialog, QLineEdit
+from PySide6.QtWidgets import QApplication, QTableView, QWidget, QMessageBox, QGroupBox, QVBoxLayout, QHBoxLayout, QProgressBar, QPushButton, QTableWidget, QMainWindow, QLabel, QMenu, QFileDialog, QTableWidgetItem, QRadioButton, QInputDialog, QLineEdit
 from PySide6.QtGui import QKeySequence
 from PySide6.QtCore import QThread, Qt
 from __feature__ import snake_case # type: ignore
 from csv_helper import get_csv_rows
-from custom_widgets import NoScrollComboBox, SplitsModal
+from custom_widgets import NoScrollComboBox, SplitsModal, SqlTableModel, SplitsModel, SplitsDropdownProxy
 import db_helper as db
 
 class ShareTheLoad(QMainWindow):
     def __init__(self, cursor):
         super().__init__()
         self.cursor = cursor
+
+        # Models
+        self.payers_model = SqlTableModel(db.get_payers(), ["ID", "Name"])
+        self.splits_model = SplitsModel(db.get_splits(), ["ID", "Distribution"], self.payers_model)
+        self.splits_dropdown_proxy = SplitsDropdownProxy()
+        self.splits_dropdown_proxy.set_source_model(self.splits_model)
 
         # UI Elements
         self.upload_csv_button = QPushButton("Upload a CSV")
@@ -22,26 +29,22 @@ class ShareTheLoad(QMainWindow):
         self.save_results_button = QPushButton("Export Results")
         self.save_results_button.set_enabled(False)
 
-        self.payers_table = QTableWidget()
+        self.payers_table = QTableView()
+        self.payers_table.set_model(self.payers_model)
         self.payers_table.horizontal_header().set_stretch_last_section(True)
         self.payers_table.set_selection_behavior(QTableWidget.SelectRows)
-        self.payers_table.set_column_count(2)
         self.payers_table.vertical_header().hide()
-        self.payers_table.set_horizontal_header_labels(["ID", "Name"])
-        self.refresh_payers()
         self.payers_add_button = QPushButton("Add")
         self.payers_edit_button = QPushButton("Edit")
         self.payers_edit_button.set_enabled(False)
         self.payers_delete_button = QPushButton("Delete")
         self.payers_delete_button.set_enabled(False)
 
-        self.splits_table = QTableWidget()
+        self.splits_table = QTableView()
+        self.splits_table.set_model(self.splits_model)
         self.splits_table.horizontal_header().set_stretch_last_section(True)
         self.splits_table.set_selection_behavior(QTableWidget.SelectRows)
-        self.splits_table.set_column_count(2)
         self.splits_table.vertical_header().hide()
-        self.splits_table.set_horizontal_header_labels(["ID", "Distribution"])
-        self.refresh_splits()
         self.splits_add_button = QPushButton("Add")
         self.splits_edit_button = QPushButton("Edit")
         self.splits_edit_button.set_enabled(False)
@@ -55,6 +58,7 @@ class ShareTheLoad(QMainWindow):
         self.payments_edit_mode_label = QLabel("Edit Mode:")
         self.payments_dropdown_edit = QRadioButton("Dropdown")
         self.payments_text_edit = QRadioButton("Text")
+        self.payments_text_edit.set_enabled(False)
         self.payments_dropdown_edit.set_checked(True)
 
         self.file_selector = QFileDialog()
@@ -71,7 +75,7 @@ class ShareTheLoad(QMainWindow):
         main_menu_box.set_minimum_width(200)
         payers_box = QGroupBox("Payers")
         splits_box = QGroupBox("Splits")
-        payments_box = QGroupBox("View Payments")
+        payments_box = QGroupBox("Payments View")
 
         # Layouts
         main_menu_layout = QVBoxLayout(main_menu_box)
@@ -122,12 +126,16 @@ class ShareTheLoad(QMainWindow):
         self.set_central_widget(QWidget())
         self.central_widget().set_layout(main_layout)
         self.status_bar().add_widget(self.status_text)
+        self.set_payments_dirty()
 
         file_menu = QMenu("File")
         file_menu.add_action("Upload a CSV", QKeySequence.Open)
         file_menu.add_action("Save CSV", QKeySequence.Save)
         file_menu.add_action("Save Results", QKeySequence.SaveAs)
         self.menu_bar().add_menu(file_menu)
+        edit_menu = QMenu("Edit")
+        edit_menu.add_action("Reset Data")
+        self.menu_bar().add_menu(edit_menu)
 
         # Tooltips
         self.upload_csv_button.set_status_tip("Open a CSV file containing payment amounts to be divided among payers.")
@@ -139,6 +147,8 @@ class ShareTheLoad(QMainWindow):
         self.upload_csv_button.clicked.connect(self.upload_csv)
         file_menu.actions()[0].triggered.connect(self.upload_csv)
 
+        edit_menu.actions()[0].triggered.connect(self.reset_data)
+
         self.calculate_button.clicked.connect(self.calculate_results)
 
         self.save_results_button.clicked.connect(self.save_results)
@@ -146,28 +156,15 @@ class ShareTheLoad(QMainWindow):
         self.payers_add_button.clicked.connect(lambda: self.update_payer())
         self.payers_edit_button.clicked.connect(lambda: self.update_payer(True))
         self.payers_delete_button.clicked.connect(self.delete_payer)
-        self.payers_table.itemSelectionChanged.connect(self.update_payers_buttons_state)
+        self.payers_table.selection_model().selectionChanged.connect(self.update_payers_buttons_state)
         self.splits_add_button.clicked.connect(lambda: self.update_split())
         self.splits_edit_button.clicked.connect(lambda: self.update_split(True))
         self.splits_delete_button.clicked.connect(self.delete_split)
-        self.splits_table.itemSelectionChanged.connect(self.update_splits_buttons_state)
+        self.splits_table.selection_model().selectionChanged.connect(self.update_splits_buttons_state)
 
         self.payments_auto_fit_columns_button.clicked.connect(self.auto_fit_columns)
-        self.payments_table.itemChanged.connect(self.set_payments_dirty)
 
         QMessageBox.information(self, "First Launch", "Welcome to Share the Load! If this is your first time using the app, please start by adding a Payer and a Split, before processing any payments.")
-
-    def get_grouped_splits(self):
-        payers = db.get_payers()
-        payers_dict = {p[0]: p[1] for p in payers}
-        ungrouped_splits = db.get_splits()
-        split_ids = set([s[1] for s in ungrouped_splits])
-        split_dict = {id: [] for id in split_ids}
-
-        for payer_id, split_id, percent in ungrouped_splits:
-            split_dict[split_id].append((payer_id, payers_dict[payer_id], percent))
-
-        return split_dict
 
     def upload_csv(self):
         if (self.file_selector.exec()):
@@ -177,6 +174,7 @@ class ShareTheLoad(QMainWindow):
             self.calculate_button.set_enabled(False)
 
             self.payments_table.clear()
+            self.set_payments_dirty()
 
             rows = get_csv_rows(self.file_selector.selected_files()[0])
             
@@ -184,8 +182,6 @@ class ShareTheLoad(QMainWindow):
             self.payments_table.set_column_count(len(rows[0]) + 1)
 
             self.payments_table.set_horizontal_header_labels(rows[0] + ["Splits"])
-
-            payer_splits = self.get_grouped_splits()
 
             for i in range(1, len(rows)):
                 # Just for fun :)
@@ -196,7 +192,10 @@ class ShareTheLoad(QMainWindow):
                     new_item.set_flags(new_item.flags() & ~Qt.ItemIsEditable)
                     self.payments_table.set_item(i-1, j, new_item)
                 splits_dropdown = NoScrollComboBox()
-                splits_dropdown.add_items([f"({split_id}) {', '.join([f'{payer_name} ({percent}%)' for _, payer_name, percent in payer_splits])}" for split_id, payer_splits in payer_splits.items()])
+                splits_dropdown.set_model(self.splits_dropdown_proxy)
+                splits_dropdown.set_current_index(-1)
+                splits_dropdown.set_placeholder_text("No Split")
+                splits_dropdown.currentIndexChanged.connect(self.set_payments_dirty)
                 self.payments_table.set_cell_widget(i-1, len(rows[i]), splits_dropdown)
 
                 self.set_progress(i / (len(rows)-1) * 100)
@@ -212,19 +211,43 @@ class ShareTheLoad(QMainWindow):
         if self.dirty_payments:
             self.set_status("Calculating...")
 
+            self.results = {}
+
             for i in range(self.payments_table.row_count()):
                 self.payments_table.select_row(i)
                 self.set_progress(i / (self.payments_table.row_count()-1) * 100)
+
+                if self.payments_table.cell_widget(i, self.payments_table.column_count()-1).current_index() == -1:
+                    continue
+
+                amount_indx = -1
+                for j in range(self.payments_table.column_count()-1):
+                    if re.match(r'^-?\d+\.?\d*$', self.payments_table.item(i, j).text()):
+                        amount_indx = j
+                        break
+
+                if amount_indx == -1:
+                    print(f"Warning: No transaction amount found in row {i+1}. Ignoring row.")
+                    continue
+
+                payer_splits = self.splits_dropdown_proxy.data(self.splits_dropdown_proxy.index(self.payments_table.cell_widget(i, self.payments_table.column_count()-1).current_index(), 0), Qt.EditRole)
+                for payer_id, percent in payer_splits:
+                    if payer_id not in self.results:
+                        self.results[payer_id] = 0
+                    self.results[payer_id] += float(self.payments_table.item(i, amount_indx).text()) * (percent / 100)
 
                 QThread.msleep(50)
 
             self.set_status("Finished calculating, displaying results...")
 
-            self.results = []
-
         self.dirty_payments = False
         self.save_results_button.set_enabled(True)
-        QMessageBox.information(self, "Calculation Results", "Results:\n\nTBD")
+        QMessageBox.information(self, "Calculation Results", f"Results:\n\n{"\n".join([f'{self.get_payer_name_by_id(id)} {'owes' if amount > 0 else 'is owed'}: ${abs(amount):.2f}' for id, amount in self.results.items()]) if self.results else "No amounts calculated. Make sure to assign Splits under the right-most column in the Payments View."}")
+
+    def get_payer_name_by_id(self, id):
+        for row in range(self.payers_model.row_count()):
+            if self.payers_model.data(self.payers_model.index(row, 0)) == id:
+                return self.payers_model.data(self.payers_model.index(row, 1))
 
     def save_results(self):
         if self.file_save_selector.exec():
@@ -234,18 +257,15 @@ class ShareTheLoad(QMainWindow):
 
     def refresh_payers(self):
         payers = db.get_payers()
-        self.payers_table.set_row_count(len(payers))
-        for i in range(len(payers)):
-            self.payers_table.set_item(i, 0, QTableWidgetItem(str(payers[i][0])))
-            self.payers_table.set_item(i, 1, QTableWidgetItem(payers[i][1]))
+        self.payers_model.refresh(payers)
 
     def update_payer(self, edit=False):
-        current_name = self.payers_table.selected_items()[1].text() if edit else ""
+        current_name = self.payers_table.selection_model().current_index().sibling_at_column(1).data() if edit else "" # Perhaps there is a better way to do this
         name, ok = QInputDialog.get_text(self, f"{'Edit' if edit else 'Add'} Payer", "Payer name:", QLineEdit.Normal, current_name)
 
         if ok and name:
             if edit: # Edit existing payer
-                id = self.payers_table.selected_items()[0].text()
+                id = self.payers_table.selection_model().current_index().sibling_at_column(0).data()
                 db.update_payer(id, name)
             else: # Add new payer
                 db.add_payer(name)
@@ -254,25 +274,13 @@ class ShareTheLoad(QMainWindow):
 
     def delete_payer(self):
         if QMessageBox.question(self, "Confirm Delete", "Are you sure you want to delete this payer? This cannot be undone.") == QMessageBox.Yes:
-            id = self.payers_table.selected_items()[0].text()
+            id = self.payers_table.selection_model().current_index().sibling_at_column(0).data()
             db.delete_payer(id)
             self.refresh_tables()
 
     def refresh_splits(self):
-        # payers = db.get_payers()
-        # payers_dict = {p[0]: p[1] for p in payers}
-        # ungrouped_splits = db.get_splits()
-        # split_ids = set([s[1] for s in ungrouped_splits])
-        # splits = {id: [] for id in split_ids}
-        # for s in ungrouped_splits:
-        #     splits[s[1]].append((s[0], s[2]))
-
-        split_dict = self.get_grouped_splits()
-        self.splits_table.set_row_count(len(split_dict))
-
-        for i, (split_id, payer_splits) in enumerate(split_dict.items()):
-            self.splits_table.set_item(i, 0, QTableWidgetItem(str(split_id)))
-            self.splits_table.set_item(i, 1, QTableWidgetItem(", ".join([f"{payer_name} ({percent}%)" for _, payer_name, percent in payer_splits])))
+        splits = db.get_splits()
+        self.splits_model.refresh(splits)
 
     def update_split(self, edit=False):
         splits_modal = SplitsModal(self)
@@ -280,7 +288,7 @@ class ShareTheLoad(QMainWindow):
         payers = db.get_payers()
 
         if edit:
-            id = self.splits_table.selected_items()[0].text()
+            id = self.splits_table.selection_model().current_index().sibling_at_column(0).data()
 
             splits = db.get_split_by_id(id)
             splits_modal.set_payer_splits(payers, splits)
@@ -300,7 +308,7 @@ class ShareTheLoad(QMainWindow):
 
     def delete_split(self):
         if QMessageBox.question(self, "Confirm Delete", "Are you sure you want to delete this split? This cannot be undone.") == QMessageBox.Yes:
-            id = self.splits_table.selected_items()[0].text()
+            id = self.splits_table.selection_model().current_index().sibling_at_column(0).data()
             db.delete_split(id)
             self.refresh_splits()
 
@@ -316,13 +324,13 @@ class ShareTheLoad(QMainWindow):
         self.refresh_payments()
 
     def update_payers_buttons_state(self):
-        has_selected = len(self.payers_table.selected_items()) != 0
+        has_selected = len(self.payers_table.selection_model().selected_rows()) != 0
 
         self.payers_edit_button.set_enabled(has_selected)
         self.payers_delete_button.set_enabled(has_selected)
 
     def update_splits_buttons_state(self):
-        has_selected = len(self.splits_table.selected_items()) != 0
+        has_selected = len(self.splits_table.selection_model().selected_rows()) != 0
 
         self.splits_edit_button.set_enabled(has_selected)
         self.splits_delete_button.set_enabled(has_selected)
@@ -342,6 +350,11 @@ class ShareTheLoad(QMainWindow):
 
     def auto_fit_columns(self):
         self.payments_table.resize_columns_to_contents()
+
+    def reset_data(self):
+        if QMessageBox.question(self, "Confirm Reset", "Are you sure you want to reset all data? This cannot be undone.") == QMessageBox.Yes:
+            db.reset_data()
+            self.refresh_tables()
 
 if __name__ == "__main__":
     cursor = db.start_db()
