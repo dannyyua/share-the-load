@@ -16,7 +16,7 @@ def start_db():
     return cursor
 
 def get_payers():
-    return cursor.execute("SELECT * FROM Payers").fetchall()
+    return cursor.execute("SELECT * FROM Payers ORDER BY payer_id").fetchall()
 
 def add_payer(name):
     cursor.execute("INSERT INTO Payers(name) VALUES (?)", (name,))
@@ -28,7 +28,7 @@ def delete_payer(id):
     cursor.execute("DELETE FROM Payers WHERE payer_id = ?", (id,))
 
 def get_splits():
-    return cursor.execute("SELECT * FROM Payer_Splits").fetchall()
+    return cursor.execute("SELECT * FROM Payer_Splits ORDER BY split_id").fetchall()
 
 def get_split_by_id(id):
     return cursor.execute("SELECT * FROM Payer_Splits WHERE split_id = ?", (id,)).fetchall()
@@ -47,3 +47,11 @@ def update_split(id, payer_splits):
 
 def delete_split(id):
     cursor.execute("DELETE FROM Splits WHERE split_id = ?", (id,))
+
+def reset_data():
+    cursor.execute("DROP TABLE Payer_Splits") # Drop first since it depends on Payers and Splits
+    cursor.execute("DROP TABLE Payers")
+    cursor.execute("DROP TABLE Splits")
+    cursor.execute(create_payers_table)
+    cursor.execute(create_split_table)
+    cursor.execute(create_payer_split_table)
