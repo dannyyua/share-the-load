@@ -1,13 +1,19 @@
 import sys
 import re
+import configparser
 
-from PySide6.QtWidgets import QApplication, QTableView, QWidget, QMessageBox, QGroupBox, QVBoxLayout, QHBoxLayout, QProgressBar, QPushButton, QTableWidget, QMainWindow, QLabel, QMenu, QFileDialog, QTableWidgetItem, QRadioButton, QInputDialog, QLineEdit
-from PySide6.QtGui import QKeySequence
+from PySide6.QtWidgets import QApplication, QTableView, QWidget, QMessageBox, QGroupBox, QVBoxLayout, QHBoxLayout, QProgressBar, QPushButton, QTableWidget, QMainWindow, QLabel, QMenu, QFileDialog, QTableWidgetItem, QRadioButton, QInputDialog, QLineEdit, QColorDialog
+from PySide6.QtGui import QKeySequence, QPalette, QColor
 from PySide6.QtCore import QThread, Qt
 from __feature__ import snake_case # type: ignore
 from csv_helper import get_csv_rows
 from custom_widgets import NoScrollComboBox, SplitsModal, SqlTableModel, SplitsModel, SplitsDropdownProxy
 import db_helper as db
+from enum import Enum
+
+class WidgetType(Enum):
+    CENTRAL = 0,
+    BUTTONS = 1
 
 class ShareTheLoad(QMainWindow):
     def __init__(self, cursor):
@@ -127,6 +133,8 @@ class ShareTheLoad(QMainWindow):
         self.central_widget().set_layout(main_layout)
         self.status_bar().add_widget(self.status_text)
         self.set_payments_dirty()
+        self.change_color(WidgetType.CENTRAL, True)
+        self.change_color(WidgetType.BUTTONS, True)
 
         file_menu = QMenu("File")
         file_menu.add_action("Upload a CSV", QKeySequence.Open)
@@ -134,6 +142,11 @@ class ShareTheLoad(QMainWindow):
         file_menu.add_action("Save Results", QKeySequence.SaveAs)
         self.menu_bar().add_menu(file_menu)
         edit_menu = QMenu("Edit")
+        edit_colors_menu = edit_menu.add_menu("Change Colors")
+        edit_colors_menu.add_action("Background Color")
+        edit_colors_menu.add_action("Buttons Color")
+        edit_colors_menu.add_action("Reset")
+        edit_menu.add_separator()
         edit_menu.add_action("Reset Data")
         self.menu_bar().add_menu(edit_menu)
 
@@ -147,7 +160,10 @@ class ShareTheLoad(QMainWindow):
         self.upload_csv_button.clicked.connect(self.upload_csv)
         file_menu.actions()[0].triggered.connect(self.upload_csv)
 
-        edit_menu.actions()[0].triggered.connect(self.reset_data)
+        edit_menu.actions()[2].triggered.connect(self.reset_data)
+        edit_colors_menu.actions()[0].triggered.connect(lambda: self.change_color(WidgetType.CENTRAL))
+        edit_colors_menu.actions()[1].triggered.connect(lambda: self.change_color(WidgetType.BUTTONS))
+        edit_colors_menu.actions()[2].triggered.connect(self.reset_colors)
 
         self.calculate_button.clicked.connect(self.calculate_results)
 
@@ -356,6 +372,48 @@ class ShareTheLoad(QMainWindow):
             db.reset_data()
             self.refresh_tables()
 
+    # Just for fun :)
+    def change_color(self, widget_type, init=False):
+        config = configparser.ConfigParser()
+        config.read("config.ini")
+
+        if init: # Set colors if colors are in config, otherwise ignore
+            if config.has_option("Colors", widget_type.name):
+                selected_color = QColor(config["Colors"][widget_type.name])
+            else:
+                return
+        else: # Prompt user for new color, using default from config if it exists
+            if config.has_option("Colors", widget_type.name):
+                selected_color = QColorDialog.get_color(QColor(config["Colors"][widget_type.name]))
+            else:
+                selected_color = QColorDialog.get_color()
+
+        if selected_color.is_valid():
+            if widget_type == WidgetType.CENTRAL: # Window Background
+                palette = self.palette()
+                palette.set_color(QPalette.Window, selected_color)
+                self.set_palette(palette)
+            elif widget_type == WidgetType.BUTTONS: # Buttons Only
+                # Workaround because palette doesn't seem to work on push buttons
+                self.central_widget().set_style_sheet(f"QPushButton {{ background-color: {selected_color.name()}; }}")
+
+            if not config.has_section("Colors"):
+                config.add_section("Colors")
+            config["Colors"][widget_type.name] = selected_color.name()
+
+            with open("config.ini", "w") as config_file:
+                config.write(config_file)
+
+    # Reset palette, style sheet, and config
+    # May need to update if config is used for other stuff
+    def reset_colors(self):
+        self.set_palette(QPalette())
+        self.central_widget().set_style_sheet("")
+
+        with open("config.ini", "w") as config_file:
+            config_file.write("")
+            
+            
 if __name__ == "__main__":
     cursor = db.start_db()
 
