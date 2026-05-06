@@ -2,6 +2,7 @@ import sqlite3
 import sys
 import re
 import configparser
+from datetime import datetime
 
 from PySide6.QtWidgets import QApplication, QTableView, QWidget, QMessageBox, QGroupBox, QVBoxLayout, QHBoxLayout, QProgressBar, QPushButton, QTableWidget, QMainWindow, QLabel, QMenu, QFileDialog, QTableWidgetItem, QRadioButton, QInputDialog, QLineEdit, QColorDialog, QButtonGroup
 from PySide6.QtGui import QKeySequence, QPalette, QColor, QIntValidator
@@ -67,8 +68,9 @@ class ShareTheLoad(QMainWindow):
         self.file_selector = QFileDialog()
         self.file_selector.set_mime_type_filters(["text/csv"])
 
-        self.file_save_selector = QFileDialog()
-        self.file_save_selector.set_mime_type_filters(["text/plain"])
+        self.file_save_results_selector = QFileDialog()
+        self.file_save_results_selector.set_mime_type_filters(["text/plain"])
+        self.file_save_results_selector.set_accept_mode(QFileDialog.AcceptSave)
 
         self.progress_bar = QProgressBar()
         self.status_text = QLabel("N/A")
@@ -268,7 +270,7 @@ class ShareTheLoad(QMainWindow):
         self.dirty_payments = False
         self.save_results_button.set_enabled(True)
 
-        QMessageBox.information(self, "Calculation Results", f"Results:\n\n{"\n".join([f'{self.get_payer_name_by_id(id)} {'owes' if amount > 0 else 'is owed'}: ${abs(amount):.2f}' for id, amount in self.results.items()]) if self.results else "No amounts calculated. Make sure to assign Splits under the right-most column in the Payments View."}")
+        QMessageBox.information(self, "Calculation Results", self.get_results_summary())
 
     def get_payer_name_by_id(self, id):
         for row in range(self.payers_model.row_count()):
@@ -282,12 +284,16 @@ class ShareTheLoad(QMainWindow):
             if self.splits_model.data(self.splits_model.index(row, 0)) == id:
                 return self.splits_model.data(self.splits_model.index(row, 1), Qt.EditRole)
         return []
+    
+    def get_results_summary(self):
+        no_results_msg = "No amounts calculated. Make sure to assign Splits under the right-most column in the Payments View."
+        return f"Results:\n\n{"\n".join([f'{self.get_payer_name_by_id(id)} {'owes' if amount > 0 else 'is owed'}: ${abs(amount):.2f}' for id, amount in self.results.items()]) if self.results else no_results_msg}"
 
     def save_results(self):
-        if self.file_save_selector.exec():
-            # with open(self.file_save_selector.selected_files()[0], "w") as f:
-            #     f.write("TBD")
-            pass
+        self.file_save_results_selector.select_file(f"ShareTheLoad_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt")
+        if self.file_save_results_selector.exec():
+            with open(self.file_save_results_selector.selected_files()[0], "w") as f:
+                f.write(self.get_results_summary())
 
     def update_payer(self, edit=False):
         current_name = self.payers_table.selection_model().current_index().sibling_at_column(1).data() if edit else "" # Perhaps there is a better way to do this
