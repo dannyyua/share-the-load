@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS Payer_Splits (
     split_id    INTEGER,
     percent     REAL CHECK(percent >= 0 AND percent <= 100),
     PRIMARY KEY (payer_id, split_id),
-    FOREIGN KEY (payer_id) REFERENCES Payers(payer_id),
-    FOREIGN KEY (split_id) REFERENCES Splits(split_id)
+    FOREIGN KEY (payer_id) REFERENCES Payers(payer_id) ON DELETE CASCADE,
+    FOREIGN KEY (split_id) REFERENCES Splits(split_id) ON DELETE CASCADE
 )
 """
