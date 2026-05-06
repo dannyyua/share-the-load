@@ -19,7 +19,7 @@ def get_payers():
     return cursor.execute("SELECT * FROM Payers ORDER BY payer_id").fetchall()
 
 def add_payer(name):
-    cursor.execute("INSERT INTO Payers(name) VALUES (?)", (name,))
+    return cursor.execute("INSERT INTO Payers(name) VALUES (?) RETURNING payer_id", (name,)).fetchone()[0]
 
 def update_payer(id, name):
     cursor.execute("UPDATE Payers SET name = ? WHERE payer_id = ?", (name, id))
@@ -38,6 +38,8 @@ def add_split(payer_splits):
 
     for payer_id, percent in payer_splits.items():
         cursor.execute("INSERT INTO Payer_Splits(split_id, payer_id, percent) VALUES (?, ?, ?)", (split_id, payer_id, percent))
+
+    return split_id
 
 def update_split(id, payer_splits):
     cursor.execute("DELETE FROM Payer_Splits WHERE split_id = ?", (id,))

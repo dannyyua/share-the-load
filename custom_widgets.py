@@ -1,6 +1,7 @@
 from PySide6.QtWidgets import QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QHBoxLayout, QLabel, QVBoxLayout
 from PySide6.QtCore import QModelIndex, Qt, QAbstractTableModel, QIdentityProxyModel
 from __feature__ import snake_case # type: ignore
+import db_helper as db
 
 # QComboBox but scrolling will not change selection
 class NoScrollComboBox(QComboBox):
@@ -83,11 +84,12 @@ class SplitsModal(QDialog):
         return {row.get_payer_id(): row.get_percent() for row in self.rows if row.is_enabled()}
     
 # Custom table model for SQL query results
+# Only for Payers currently, may consider renaming this to reflect this
 class SqlTableModel(QAbstractTableModel):
-    def __init__(self, data, headers):
+    def __init__(self):
         super().__init__()
-        self.refresh(data)
-        self._headers = headers
+        self.refresh()
+        self._headers = ["ID", "Name"]
 
     def row_count(self, parent=QModelIndex()):
         return len(self._data) if not parent.is_valid() else 0
@@ -105,20 +107,38 @@ class SqlTableModel(QAbstractTableModel):
             return self._headers[section]
         return None
     
-    def refresh(self, data):
-        self.begin_reset_model()
-        
-        self._data = data
+    def insert_row(self, name):
+        self.begin_insert_rows(QModelIndex(), self.row_count(), self.row_count())
+        id = db.add_payer(name)
+        self._data.append((id, name))
+        self.end_insert_rows()
 
+    def update_row(self, row):
+        row_index = self.match(self.index(0,0), Qt.DisplayRole, row[0])[0].row()
+        db.update_payer(row[0], row[1])
+        self._data[row_index] = row
+        self.dataChanged.emit(self.index(row_index, 0), self.index(row_index, self.column_count() - 1))
+
+    def remove_row(self, id):
+        row_index = self.match(self.index(0,0), Qt.DisplayRole, id)[0].row()
+        self.begin_remove_rows(QModelIndex(), row_index, row_index)
+        db.delete_payer(id)
+        del self._data[row_index]
+        self.end_remove_rows()
+
+    def refresh(self):
+        self.begin_reset_model()
+        self._data = db.get_payers()
         self.end_reset_model()
     
 # Special model for grouped Splits
 class SplitsModel(QAbstractTableModel):
-    def __init__(self, data, headers, payers_model):
+    def __init__(self, payers_model):
         super().__init__()
-        self.refresh(data)
-        self._headers = headers
+        self.refresh()
+        self._headers = ["ID", "Distribution"]
         self._payers_model = payers_model
+        self._payers_model.rowsAboutToBeRemoved.connect(self.validate_splits)
 
     def row_count(self, parent=QModelIndex()):
         return len(self._data) if not parent.is_valid() else 0
@@ -149,8 +169,29 @@ class SplitsModel(QAbstractTableModel):
             return self._headers[section]
         return None
     
-    def refresh(self, data):
+    def insert_row(self, payer_splits):
+        self.begin_insert_rows(QModelIndex(), self.row_count(), self.row_count())
+        id = db.add_split(payer_splits)
+        self._data.append((id, [(payer_id, percent) for payer_id, percent in payer_splits.items()]))
+        self.end_insert_rows()
+
+    def update_row(self, row):
+        row_index = self.match(self.index(0,0), Qt.DisplayRole, row[0])[0].row()
+        db.update_split(row[0], row[1])
+        self._data[row_index] = (row[0], [(payer_id, percent) for payer_id, percent in row[1].items()])
+        self.dataChanged.emit(self.index(row_index, 0), self.index(row_index, self.column_count() - 1))
+        
+    def remove_row(self, id):
+        row_index = self.match(self.index(0,0), Qt.DisplayRole, id)[0].row()
+        self.begin_remove_rows(QModelIndex(), row_index, row_index)
+        db.delete_split(id)
+        del self._data[row_index]
+        self.end_remove_rows()
+    
+    def refresh(self):
         self.begin_reset_model()
+
+        data = db.get_splits()
 
         self._data = []
         split_dict = {split_id: [] for _, split_id, _ in data}
@@ -161,6 +202,31 @@ class SplitsModel(QAbstractTableModel):
 
         self.end_reset_model()
 
+    # Workaround to remove splits with deleted payers
+    def validate_splits(self, parent, first, last):
+        removed_payer_id = self._payers_model.data(self._payers_model.index(first, 0))
+
+        splits_to_delete = []
+        for i in range(self.row_count()):
+            payer_splits_to_delete = []
+
+            # Check for payer splits where the payer is being removed
+            for j in range(len(self._data[i][1])):
+                if self._data[i][1][j][0] == removed_payer_id:
+                    payer_splits_to_delete.append(j)
+                    
+            # Delete these payer splits
+            for index in payer_splits_to_delete:
+                del self._data[i][1][index]
+
+            # If split is empty, delete it too
+            if len(self._data[i][1]) == 0:
+                splits_to_delete.append(i)
+
+        # Delete in reverse because we are mutating the list while iterating through it
+        for index in reversed(splits_to_delete):
+            self.remove_row(self._data[index][0])
+
 # Special proxy that just changes the display text a bit for the splits dropdown
 class SplitsDropdownProxy(QIdentityProxyModel):
     def __init__(self, parent=None):
@@ -170,4 +236,4 @@ class SplitsDropdownProxy(QIdentityProxyModel):
         if role == Qt.DisplayRole:
             return f"{super().data(index.sibling_at_column(0), role)}. {super().data(index.sibling_at_column(1), role)}"
         elif role == Qt.EditRole:
-            return super().data(index.sibling_at_column(1), role)
+            return super().data(index, role)
