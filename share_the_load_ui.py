@@ -4,7 +4,7 @@ import re
 import configparser
 
 from PySide6.QtWidgets import QApplication, QTableView, QWidget, QMessageBox, QGroupBox, QVBoxLayout, QHBoxLayout, QProgressBar, QPushButton, QTableWidget, QMainWindow, QLabel, QMenu, QFileDialog, QTableWidgetItem, QRadioButton, QInputDialog, QLineEdit, QColorDialog, QButtonGroup
-from PySide6.QtGui import QKeySequence, QPalette, QColor
+from PySide6.QtGui import QKeySequence, QPalette, QColor, QIntValidator
 from PySide6.QtCore import QThread, Qt
 from __feature__ import snake_case # type: ignore
 from csv_helper import get_csv_rows
@@ -372,6 +372,7 @@ class ShareTheLoad(QMainWindow):
             elif self.edit_mode == EditMode.TEXT:
                 splits_widget = QLineEdit()
                 splits_widget.set_placeholder_text("Enter a Split ID or leave empty to ignore...")
+                splits_widget.set_validator(QIntValidator(0, 2147483647))
 
                 if current_value is not None:
                     splits_widget.set_text(str(current_value))
