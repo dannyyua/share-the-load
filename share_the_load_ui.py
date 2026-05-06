@@ -72,6 +72,10 @@ class ShareTheLoad(QMainWindow):
         self.file_save_results_selector.set_mime_type_filters(["text/plain"])
         self.file_save_results_selector.set_accept_mode(QFileDialog.AcceptSave)
 
+        self.file_save_csv_selector = QFileDialog()
+        self.file_save_csv_selector.set_mime_type_filters(["text/csv"])
+        self.file_save_csv_selector.set_accept_mode(QFileDialog.AcceptSave)
+
         self.progress_bar = QProgressBar()
         self.status_text = QLabel("N/A")
 
@@ -168,6 +172,7 @@ class ShareTheLoad(QMainWindow):
 
         self.calculate_button.clicked.connect(self.calculate_results)
 
+        self.save_csv_button.clicked.connect(self.save_csv)
         self.save_results_button.clicked.connect(self.save_results)
 
         self.payers_add_button.clicked.connect(lambda: self.update_payer())
@@ -188,6 +193,7 @@ class ShareTheLoad(QMainWindow):
         if self.splits_dropdown_proxy.row_count() == 0:
             QMessageBox.information(self, "First Launch", "Welcome to Share the Load! If this is your first time using the app, please start by adding a Payer and a Split, before processing any payments.")
 
+    #TODO: Handle uploading a CSV with splits included
     def upload_csv(self):
         if (self.file_selector.exec()):
             self.set_status("Reading uploaded CSV...")
@@ -284,6 +290,43 @@ class ShareTheLoad(QMainWindow):
             if self.splits_model.data(self.splits_model.index(row, 0)) == id:
                 return self.splits_model.data(self.splits_model.index(row, 1), Qt.EditRole)
         return []
+    
+    # Export CSV (from Payments table)
+    def save_csv(self):
+        self.file_save_csv_selector.select_file(f"ShareTheLoad_payments_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv")
+        if self.file_save_csv_selector.exec():
+            with open(self.file_save_csv_selector.selected_files()[0], "w") as f:
+                # Write header
+                headers = [self.payments_table.horizontal_header_item(i).text() for i in range(self.payments_table.column_count())]
+                f.write(",".join(headers) + "\n")
+
+                # Write rows
+                for i in range(self.payments_table.row_count()):
+                    row_data = []
+
+                    for j in range(self.payments_table.column_count()-1):
+                        item = self.payments_table.item(i, j)
+                        if item is None: # Empty cell
+                            item = ""
+                        elif "," in item.text(): # Cell contains commas
+                            item = f'"{item.text()}"' # Handle commas in amounts by wrapping in quotes
+                        else:
+                            item = item.text()
+                        row_data.append(item)
+
+                    # Handle splits widget based on edit mode
+                    # Could refactor this
+                    splits_widget = self.payments_table.cell_widget(i, self.payments_table.column_count()-1)
+                    if type(splits_widget) is NoScrollComboBox and splits_widget.current_index() != -1:
+                        row_data.append(str(self.splits_dropdown_proxy.data(self.splits_dropdown_proxy.index(splits_widget.current_index(), 0), Qt.EditRole)))
+                    elif type(splits_widget) is QLineEdit and splits_widget.text() != "":
+                        row_data.append(splits_widget.text())
+                    elif type(splits_widget) is QWidget and hasattr(splits_widget, "group") and splits_widget.group.checked_id() != -1:
+                        row_data.append(str(splits_widget.group.checked_id()))
+                    else:
+                        row_data.append("")
+
+                    f.write(",".join(row_data) + "\n")
     
     def get_results_summary(self):
         no_results_msg = "No amounts calculated. Make sure to assign Splits under the right-most column in the Payments View."
