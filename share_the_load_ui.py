@@ -4,7 +4,7 @@ import re
 import configparser
 from datetime import datetime
 
-from PySide6.QtWidgets import QApplication, QTableView, QWidget, QMessageBox, QGroupBox, QVBoxLayout, QHBoxLayout, QProgressBar, QPushButton, QTableWidget, QMainWindow, QLabel, QMenu, QFileDialog, QTableWidgetItem, QRadioButton, QInputDialog, QLineEdit, QColorDialog, QButtonGroup
+from PySide6.QtWidgets import QApplication, QTableView, QWidget, QMessageBox, QGroupBox, QVBoxLayout, QHBoxLayout, QProgressBar, QPushButton, QTableWidget, QMainWindow, QLabel, QMenu, QFileDialog, QTableWidgetItem, QRadioButton, QInputDialog, QLineEdit, QColorDialog, QButtonGroup, QSplitter
 from PySide6.QtGui import QKeySequence, QPalette, QColor, QIntValidator
 from PySide6.QtCore import QThread, Qt
 from __feature__ import snake_case # type: ignore
@@ -122,19 +122,24 @@ class ShareTheLoad(QMainWindow):
         payments_edit_mode_layout.add_widget(self.payments_radio_edit)
         payments_layout.add_layout(payments_edit_mode_layout)
 
-        top_row_layout = QHBoxLayout()
-        main_layout = QVBoxLayout()
+        top_row_widget = QWidget()
+        top_row_layout = QHBoxLayout(top_row_widget)
+        top_row_layout.set_contents_margins(0,0,0,0) # Margins handled by QSplitter below
 
+        # Allow vertical resizing to make payments view larger/smaller
+        # Splitter doesnt support layouts so we use a widget workaround
+        splitter = QSplitter()
+        splitter.set_orientation(Qt.Vertical)
+        splitter.set_contents_margins(11,11,11,11) # Match default layout margins
+        splitter.add_widget(top_row_widget)
+        splitter.add_widget(payments_box)
+        splitter.add_widget(self.progress_bar)
         top_row_layout.add_widget(main_menu_box)
         top_row_layout.add_widget(payers_box)
         top_row_layout.add_widget(splits_box)
-        main_layout.add_layout(top_row_layout)
-        main_layout.add_widget(payments_box)
-        main_layout.add_widget(self.progress_bar)
 
         # Inits
-        self.set_central_widget(QWidget())
-        self.central_widget().set_layout(main_layout)
+        self.set_central_widget(splitter)
         self.status_bar().add_widget(self.status_text)
         self.set_payments_dirty()
         self.change_color(WidgetType.CENTRAL, True)
