@@ -411,6 +411,7 @@ class ShareTheLoad(QMainWindow):
                     current_value = current_widget.group.checked_id()
             elif current_cell is not None and current_cell.text().isnumeric(): # Occurs when uploading CSV with Splits column already included
                 current_value = current_cell.text()
+                current_cell.set_text("")
 
             # Render either a dropdown/text input/radio buttons depending on edit mode
             if self.edit_mode == EditMode.DROPDOWN:
