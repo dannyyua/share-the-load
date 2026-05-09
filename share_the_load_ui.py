@@ -489,7 +489,9 @@ class ShareTheLoad(QMainWindow):
         self.save_results_button.set_enabled(False)
 
     def auto_fit_columns(self):
-        self.payments_table.resize_columns_to_contents()
+        # Auto fit all columns other than Splits column
+        for i in range(self.payments_table.column_count()-1):
+            self.payments_table.resize_column_to_contents(i)
 
     def reset_data(self):
         if QMessageBox.question(self, "Confirm Reset", "Are you sure you want to reset all data? This cannot be undone.") == QMessageBox.Yes:
