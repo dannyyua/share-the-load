@@ -207,9 +207,14 @@ class ShareTheLoad(QMainWindow):
             rows = get_csv_rows(self.file_selector.selected_files()[0])
             
             self.payments_table.set_row_count(len(rows)-1)
-            self.payments_table.set_column_count(len(rows[0]) + 1)
 
-            self.payments_table.set_horizontal_header_labels(rows[0] + ["Splits"])
+            # If CSV already has Splits column, use it, otherwise add one
+            if len(rows) > 1 and rows[0][-1] == "Splits":
+                self.payments_table.set_column_count(len(rows[0]))
+                self.payments_table.set_horizontal_header_labels(rows[0])
+            else:
+                self.payments_table.set_column_count(len(rows[0]) + 1)
+                self.payments_table.set_horizontal_header_labels(rows[0] + ["Splits"])
 
             for i in range(1, len(rows)):
                 # Just for fun :)
@@ -393,6 +398,7 @@ class ShareTheLoad(QMainWindow):
 
         for i in rows:
             current_widget = self.payments_table.cell_widget(i, self.payments_table.column_count()-1)
+            current_cell = self.payments_table.item(i, self.payments_table.column_count()-1)
             current_value = None
 
             # Keep track of current value to retain values while switching edit modes
@@ -403,6 +409,8 @@ class ShareTheLoad(QMainWindow):
                     current_value = current_widget.text()
                 elif type(current_widget) is QWidget and hasattr(current_widget, "group") and current_widget.group.checked_id() != -1:
                     current_value = current_widget.group.checked_id()
+            elif current_cell is not None and current_cell.text().isnumeric(): # Occurs when uploading CSV with Splits column already included
+                current_value = current_cell.text()
 
             # Render either a dropdown/text input/radio buttons depending on edit mode
             if self.edit_mode == EditMode.DROPDOWN:
