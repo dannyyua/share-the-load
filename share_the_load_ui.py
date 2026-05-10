@@ -2,10 +2,11 @@ import sqlite3
 import sys
 import re
 import configparser
+import os
 from datetime import datetime
 
 from PySide6.QtWidgets import QApplication, QTableView, QWidget, QMessageBox, QGroupBox, QVBoxLayout, QHBoxLayout, QProgressBar, QPushButton, QTableWidget, QMainWindow, QLabel, QMenu, QFileDialog, QTableWidgetItem, QRadioButton, QInputDialog, QLineEdit, QColorDialog, QButtonGroup, QSplitter
-from PySide6.QtGui import QKeySequence, QPalette, QColor, QIntValidator
+from PySide6.QtGui import QKeySequence, QPalette, QColor, QIntValidator, QIcon
 from PySide6.QtCore import QThread, Qt
 from __feature__ import snake_case # type: ignore
 from csv_helper import get_csv_rows
@@ -17,6 +18,8 @@ class ShareTheLoad(QMainWindow):
     def __init__(self, cursor):
         super().__init__()
         self.cursor = cursor
+        self.set_window_title("Share the Load")
+        self.set_window_icon(QIcon("icon.png" if os.path.isfile("icon.png") else "lib/icon.png"))
 
         # Models
         self.payers_model = SqlTableModel()
