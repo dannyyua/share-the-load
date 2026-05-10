@@ -9,7 +9,7 @@ All data stored locally.
 ## How to Run:
 
 1. Download the latest version of Share the Load from the Releases section on the right
-2. Extract the .zip, then run `share_the_load_ui.exe`
+2. Extract the .zip, then run `ShareTheLoad.exe`
 3. Ready to use! Start by adding a Payer and a Split, then upload a CSV containing payments to split.
 
 <details>
