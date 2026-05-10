@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QHBoxLayout, QLabel, QVBoxLayout
+from PySide6.QtWidgets import QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QHBoxLayout, QLabel, QVBoxLayout, QLineEdit
 from PySide6.QtCore import QModelIndex, Qt, QAbstractTableModel, QIdentityProxyModel
 from __feature__ import snake_case # type: ignore
 import db_helper as db
@@ -51,26 +51,44 @@ class SplitsModal(QDialog):
         super().__init__(parent)
         self.set_modal(True)
 
+        self.payer_splits = {}
+        self.name = ""
+
     # Add
     def set_payers(self, payers):
         self.set_payer_splits(payers, [])
 
     # Edit
     def set_payer_splits(self, payers, splits):
+        self.payers_dict = {p[0]: p[1] for p in payers}
         self.payer_splits = {}
         for payer in payers:
             self.payer_splits[payer[0]] = 0
         for split in splits:
             self.payer_splits[split[0]] = split[2]
 
-        payers_dict = {p[0]: p[1] for p in payers}
+    # Both Add and Edit
+    def set_name(self, name):
+        self.name = name
 
+    # Populate dialog contents before showing, overloading exec()
+    def exec(self):
         self.layout = QVBoxLayout()
         self.rows = []
+
+        # Add a row for each payer
         for i, (id, percent) in enumerate(self.payer_splits.items()):
-            row = SplitsModalRow(id, payers_dict[id], percent)
+            row = SplitsModalRow(id, self.payers_dict[id], percent)
             self.rows.append(row)
             self.layout.add_layout(row)
+
+        # Add a row for the split name
+        name_layout = QHBoxLayout()
+        name_layout.add_widget(QLabel("Name (optional):"))
+        self.name_input = QLineEdit()
+        self.name_input.set_text(self.name)
+        name_layout.add_widget(self.name_input)
+        self.layout.add_layout(name_layout)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         buttons.accepted.connect(self.accept)
@@ -79,9 +97,14 @@ class SplitsModal(QDialog):
         self.layout.add_widget(buttons)
 
         self.set_layout(self.layout)
+
+        return super().exec()
         
     def get_payer_splits(self):
         return {row.get_payer_id(): row.get_percent() for row in self.rows if row.is_enabled()}
+    
+    def get_name(self):
+        return self.name_input.text()
     
 # Custom table model for SQL query results
 # Only for Payers currently, may consider renaming this to reflect this
@@ -95,7 +118,7 @@ class SqlTableModel(QAbstractTableModel):
         return len(self._data) if not parent.is_valid() else 0
     
     def column_count(self, parent=QModelIndex()):
-        return 2
+        return len(self._headers)
     
     def data(self, index, role=Qt.DisplayRole):
         if role == Qt.DisplayRole:
@@ -136,7 +159,7 @@ class SplitsModel(QAbstractTableModel):
     def __init__(self, payers_model):
         super().__init__()
         self.refresh()
-        self._headers = ["ID", "Distribution"]
+        self._headers = ["ID", "Distribution", "Name"]
         self._payers_model = payers_model
         self._payers_model.rowsAboutToBeRemoved.connect(self.validate_splits)
 
@@ -144,7 +167,7 @@ class SplitsModel(QAbstractTableModel):
         return len(self._data) if not parent.is_valid() else 0
 
     def column_count(self, parent=QModelIndex()):
-        return 2
+        return len(self._headers)
     
     def _get_payer_name_by_id(self, id):
         for row in range(self._payers_model.row_count()):
@@ -155,13 +178,17 @@ class SplitsModel(QAbstractTableModel):
         if role == Qt.DisplayRole:
             if index.column() == 0:
                 return self._data[index.row()][0] # Split ID
-            else:
-                return ", ".join([f"{self._get_payer_name_by_id(payer_id)}: {percent}%" for payer_id, percent in self._data[index.row()][1]]) # Payer Name: Percent
+            elif index.column() == 1:
+                return ", ".join([f"{self._get_payer_name_by_id(payer_id)} ({percent}%)" for payer_id, percent in self._data[index.row()][1]]) # Payer Name: Percent
+            elif index.column() == 2:
+                return self._data[index.row()][2] # Split Name
         elif role == Qt.EditRole:
             if index.column() == 0:
                 return self._data[index.row()][0] # Split ID
-            else:
+            elif index.column() == 1:
                 return [(payer_id, percent) for payer_id, percent in self._data[index.row()][1]] # List of (Payer ID, Percent)
+            elif index.column() == 2:
+                return self._data[index.row()][2] # Split Name
         return None
 
     def header_data(self, section, orientation, role):
@@ -169,16 +196,18 @@ class SplitsModel(QAbstractTableModel):
             return self._headers[section]
         return None
     
-    def insert_row(self, payer_splits):
+    def insert_row(self, payer_splits, name):
         self.begin_insert_rows(QModelIndex(), self.row_count(), self.row_count())
         id = db.add_split(payer_splits)
-        self._data.append((id, [(payer_id, percent) for payer_id, percent in payer_splits.items()]))
+        db.update_split_name(id, name)
+        self._data.append((id, [(payer_id, percent) for payer_id, percent in payer_splits.items()], name))
         self.end_insert_rows()
 
     def update_row(self, row):
         row_index = self.match(self.index(0,0), Qt.DisplayRole, row[0])[0].row()
         db.update_split(row[0], row[1])
-        self._data[row_index] = (row[0], [(payer_id, percent) for payer_id, percent in row[1].items()])
+        db.update_split_name(row[0], row[2])
+        self._data[row_index] = (row[0], [(payer_id, percent) for payer_id, percent in row[1].items()], row[2])
         self.dataChanged.emit(self.index(row_index, 0), self.index(row_index, self.column_count() - 1))
         
     def remove_row(self, id):
@@ -192,13 +221,15 @@ class SplitsModel(QAbstractTableModel):
         self.begin_reset_model()
 
         data = db.get_splits()
+        names = db.get_split_names()
 
         self._data = []
         split_dict = {split_id: [] for _, split_id, _ in data}
+        names_dict = {split_id: name for split_id, name in names}
         for split in data:
             split_dict[split[1]].append((split[0], split[2]))
         for split_id, payer_splits in split_dict.items():
-            self._data.append((split_id, payer_splits))
+            self._data.append((split_id, payer_splits, names_dict[split_id]))
 
         self.end_reset_model()
 
@@ -234,6 +265,7 @@ class SplitsDropdownProxy(QIdentityProxyModel):
     
     def data(self, index, role=Qt.DisplayRole):
         if role == Qt.DisplayRole:
-            return f"{super().data(index.sibling_at_column(0), role)}. {super().data(index.sibling_at_column(1), role)}"
+            display_text = super().data(index.sibling_at_column(2), role) or super().data(index.sibling_at_column(1), role) # Use split name if it exists, otherwise fallback to distribution
+            return f"{super().data(index.sibling_at_column(0), role)}. {display_text}"
         elif role == Qt.EditRole:
             return super().data(index, role)

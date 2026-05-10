@@ -377,17 +377,20 @@ class ShareTheLoad(QMainWindow):
             id = self.splits_table.selection_model().current_index().sibling_at_column(0).data()
 
             splits = db.get_split_by_id(id)
+            name = db.get_split_name_by_id(id)
             splits_modal.set_payer_splits(payers, splits)
+            splits_modal.set_name(name)
         else:
             splits_modal.set_payers(payers)
 
         if splits_modal.exec():
             payer_splits = splits_modal.get_payer_splits()
+            name = splits_modal.get_name()
             if payer_splits:
                 if edit:
-                    self.splits_model.update_row((id, payer_splits))
+                    self.splits_model.update_row((id, payer_splits, name))
                 else:
-                    self.splits_model.insert_row(payer_splits)
+                    self.splits_model.insert_row(payer_splits, name)
 
     def delete_split(self):
         if QMessageBox.question(self, "Confirm Delete", "Are you sure you want to delete this split? This cannot be undone.") == QMessageBox.Yes:

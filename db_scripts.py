@@ -7,7 +7,8 @@ CREATE TABLE IF NOT EXISTS Payers (
 
 create_split_table = """
 CREATE TABLE IF NOT EXISTS Splits (
-    split_id    INTEGER PRIMARY KEY AUTOINCREMENT
+    split_id    INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT COLLATE NOCASE UNIQUE
 )
 """
 

@@ -50,6 +50,16 @@ def update_split(id, payer_splits):
 def delete_split(id):
     cursor.execute("DELETE FROM Splits WHERE split_id = ?", (id,))
 
+# Likely should be renamed to get_splits() in future refactor
+def get_split_names():
+    return cursor.execute("SELECT * FROM Splits ORDER BY split_id").fetchall()
+
+def get_split_name_by_id(id):
+    return cursor.execute("SELECT name FROM Splits WHERE split_id = ?", (id,)).fetchone()[0]
+
+def update_split_name(id, name):
+    cursor.execute("UPDATE Splits SET name = ? WHERE split_id = ?", (name, id))
+
 def reset_data():
     cursor.execute("DROP TABLE Payer_Splits") # Drop first since it depends on Payers and Splits
     cursor.execute("DROP TABLE Payers")
