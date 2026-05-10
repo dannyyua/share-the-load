@@ -50,6 +50,7 @@ class SplitsModal(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.set_modal(True)
+        self.set_window_title("Add/Edit Split")
 
         self.payer_splits = {}
         self.name = ""
@@ -76,6 +77,9 @@ class SplitsModal(QDialog):
         self.layout = QVBoxLayout()
         self.rows = []
 
+        # Label text
+        self.layout.add_widget(QLabel("Select payers and their shares:"))
+
         # Add a row for each payer
         for i, (id, percent) in enumerate(self.payer_splits.items()):
             row = SplitsModalRow(id, self.payers_dict[id], percent)
@@ -84,10 +88,11 @@ class SplitsModal(QDialog):
 
         # Add a row for the split name
         name_layout = QHBoxLayout()
-        name_layout.add_widget(QLabel("Name (optional):"))
+        name_layout.add_widget(QLabel("Split Name (optional):"))
         self.name_input = QLineEdit()
         self.name_input.set_text(self.name)
         name_layout.add_widget(self.name_input)
+        self.layout.add_spacing(11)
         self.layout.add_layout(name_layout)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
