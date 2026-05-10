@@ -50,6 +50,7 @@ class ShareTheLoad(QMainWindow):
         self.splits_table.set_selection_behavior(QTableWidget.SelectRows)
         self.splits_table.vertical_header().hide()
         self.splits_add_button = QPushButton("Add")
+        self.splits_add_button.set_enabled(self.payers_model.row_count() > 0) # Require at least 1 payer to add splits
         self.splits_edit_button = QPushButton("Edit")
         self.splits_edit_button.set_enabled(False)
         self.splits_delete_button = QPushButton("Delete")
@@ -188,6 +189,8 @@ class ShareTheLoad(QMainWindow):
         self.splits_edit_button.clicked.connect(lambda: self.update_split(True))
         self.splits_delete_button.clicked.connect(self.delete_split)
         self.splits_table.selection_model().selectionChanged.connect(self.update_splits_buttons_state)
+        self.payers_model.rowsInserted.connect(self.update_splits_buttons_state) # To disable adding Splits if no payers exist
+        self.payers_model.rowsRemoved.connect(self.update_splits_buttons_state) # To disable adding Splits if no payers exist
 
         self.payments_auto_fit_columns_button.clicked.connect(self.auto_fit_columns)
         self.payments_dropdown_edit.clicked.connect(lambda: self.set_edit_mode(EditMode.DROPDOWN))
@@ -479,7 +482,9 @@ class ShareTheLoad(QMainWindow):
 
     def update_splits_buttons_state(self):
         has_selected = len(self.splits_table.selection_model().selected_rows()) != 0
+        has_valid_payers = self.payers_model.row_count() > 0
 
+        self.splits_add_button.set_enabled(has_valid_payers)
         self.splits_edit_button.set_enabled(has_selected)
         self.splits_delete_button.set_enabled(has_selected)
 
