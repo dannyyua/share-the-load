@@ -173,6 +173,8 @@ class ShareTheLoad(QMainWindow):
         # User Actions
         self.upload_csv_button.clicked.connect(self.upload_csv)
         file_menu.actions()[0].triggered.connect(self.upload_csv)
+        file_menu.actions()[1].triggered.connect(self.save_csv)
+        file_menu.actions()[2].triggered.connect(self.save_results)
 
         edit_menu.actions()[2].triggered.connect(self.reset_data)
         edit_colors_menu.actions()[0].triggered.connect(lambda: self.change_color(WidgetType.CENTRAL))
@@ -204,7 +206,6 @@ class ShareTheLoad(QMainWindow):
         if self.splits_dropdown_proxy.row_count() == 0:
             QMessageBox.information(self, "First Launch", "Welcome to Share the Load! If this is your first time using the app, please start by adding a Payer and a Split, before processing any payments.")
 
-    #TODO: Handle uploading a CSV with splits included
     def upload_csv(self):
         if (self.file_selector.exec()):
             self.set_status("Reading uploaded CSV...")
@@ -292,7 +293,9 @@ class ShareTheLoad(QMainWindow):
         self.dirty_payments = False
         self.save_results_button.set_enabled(True)
 
-        QMessageBox.information(self, "Calculation Results", self.get_results_summary())
+        selection = QMessageBox.information(self, "Calculation Results", self.get_results_summary(), QMessageBox.Ok | QMessageBox.Save)
+        if selection == QMessageBox.Save:
+            self.save_results()
 
     def get_payer_name_by_id(self, id):
         for row in range(self.payers_model.row_count()):
