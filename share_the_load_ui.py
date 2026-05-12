@@ -61,6 +61,7 @@ class ShareTheLoad(QMainWindow):
 
         self.payments_table = QTableWidget()
         self.payments_table.horizontal_header().set_stretch_last_section(True)
+        self.payments_table.set_selection_behavior(QTableWidget.SelectRows)
         self.payments_auto_fit_columns_button = QPushButton("Auto-Fit Columns")
         self.payments_auto_fit_columns_button.set_enabled(False)
         self.payments_edit_mode_label = QLabel("Edit Mode:")
