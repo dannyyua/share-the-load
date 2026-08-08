@@ -1,0 +1,1 @@
+python3 -m PyInstaller --noconsole --name "ShareTheLoad" --icon icon.ico --contents-directory lib --add-data "icon.png:." --version-file file_version_info.txt share_the_load_ui.py
