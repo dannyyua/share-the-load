@@ -3,9 +3,10 @@ import subprocess
 import tempfile
 import zipfile
 
-from PySide6.QtWidgets import QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QHBoxLayout, QLabel, QMessageBox, QProgressBar, QVBoxLayout, QLineEdit, QPushButton
+from PySide6.QtWidgets import QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QHBoxLayout, QLabel, QMessageBox, QProgressBar, QToolButton, QVBoxLayout, QLineEdit, QPushButton
 from PySide6.QtCore import QFile, QIODevice, QModelIndex, QTimer, Qt, QAbstractTableModel, QIdentityProxyModel, QUrl
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QRestAccessManager, QNetworkRequest, QRestReply
+from PySide6.QtGui import QIcon
 from __feature__ import snake_case # type: ignore
 from globals import version
 import db_helper as db
@@ -15,6 +16,28 @@ class NoScrollComboBox(QComboBox):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.set_focus_policy(Qt.StrongFocus)
+
+        # Add clear button to deselect Splits
+        self.clear_btn = QToolButton(self)
+        self.clear_btn.set_icon(QIcon("circle-xmark-solid.png"))
+        self.clear_btn.set_cursor(Qt.CursorShape.ArrowCursor)
+        self.clear_btn.set_style_sheet("background: transparent; border: none; padding: 0px;")
+        
+        # Position the button on the right side
+        layout = QHBoxLayout(self)
+        layout.add_widget(self.clear_btn, 0, Qt.AlignmentFlag.AlignRight)
+        
+        # Adjust right margin so it does not block the dropdown arrow
+        layout.set_contents_margins(0, 0, 20, 0) 
+        
+        # Connect the click event to clear selection
+        self.clear_btn.clicked.connect(lambda: self.set_current_index(-1))
+
+        self.currentIndexChanged.connect(self.update_clear_button)
+
+    def update_clear_button(self):
+        # Show the clear button only when an item is selected
+        self.clear_btn.set_visible(self.current_index() != -1)
 
     def wheel_event(self, e):
         if not self.has_focus():
