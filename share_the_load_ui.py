@@ -10,7 +10,7 @@ from PySide6.QtGui import QKeySequence, QPalette, QColor, QIntValidator, QIcon
 from PySide6.QtCore import QThread, Qt
 from __feature__ import snake_case # type: ignore
 from csv_helper import get_csv_rows
-from custom_widgets import NoScrollComboBox, SplitsModal, SqlTableModel, SplitsModel, SplitsDropdownProxy
+from custom_widgets import NoScrollComboBox, SplitsModal, SqlTableModel, SplitsModel, SplitsDropdownProxy, UpdateCheckModal
 import db_helper as db
 from enums import *
 
@@ -164,6 +164,9 @@ class ShareTheLoad(QMainWindow):
         edit_menu.add_separator()
         edit_menu.add_action("Reset Data")
         self.menu_bar().add_menu(edit_menu)
+        help_menu = QMenu("Help")
+        help_menu.add_action("Check for Updates")
+        self.menu_bar().add_menu(help_menu)
 
         # Tooltips
         self.upload_csv_button.set_status_tip("Open a CSV file containing payment amounts to be divided among payers.")
@@ -181,6 +184,8 @@ class ShareTheLoad(QMainWindow):
         edit_colors_menu.actions()[0].triggered.connect(lambda: self.change_color(WidgetType.CENTRAL))
         edit_colors_menu.actions()[1].triggered.connect(lambda: self.change_color(WidgetType.BUTTONS))
         edit_colors_menu.actions()[2].triggered.connect(self.reset_colors)
+
+        help_menu.actions()[0].triggered.connect(self.check_for_updates)
 
         self.calculate_button.clicked.connect(self.calculate_results)
 
@@ -563,6 +568,10 @@ class ShareTheLoad(QMainWindow):
     def set_edit_mode(self, edit_mode):
         self.edit_mode = edit_mode
         self.refresh_payments()
+
+    def check_for_updates(self):
+        update_modal = UpdateCheckModal(self)
+        update_modal.exec()
             
 if __name__ == "__main__":
     cursor = db.start_db()

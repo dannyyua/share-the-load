@@ -1,6 +1,13 @@
-from PySide6.QtWidgets import QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QHBoxLayout, QLabel, QVBoxLayout, QLineEdit
-from PySide6.QtCore import QModelIndex, Qt, QAbstractTableModel, QIdentityProxyModel
+import os
+import subprocess
+import tempfile
+import zipfile
+
+from PySide6.QtWidgets import QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QHBoxLayout, QLabel, QMessageBox, QProgressBar, QVBoxLayout, QLineEdit, QPushButton
+from PySide6.QtCore import QFile, QIODevice, QModelIndex, QTimer, Qt, QAbstractTableModel, QIdentityProxyModel, QUrl
+from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QRestAccessManager, QNetworkRequest, QRestReply
 from __feature__ import snake_case # type: ignore
+from globals import version
 import db_helper as db
 
 # QComboBox but scrolling will not change selection
@@ -274,3 +281,145 @@ class SplitsDropdownProxy(QIdentityProxyModel):
             return f"{super().data(index.sibling_at_column(0), role)}. {display_text}"
         elif role == Qt.EditRole:
             return super().data(index, role)
+
+# Check for Updates modal
+class UpdateCheckModal(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.set_modal(True)
+        self.set_window_title("Check for Updates")
+
+        self.vertical_layout = QVBoxLayout()
+
+        self.update_text = QLabel("Checking for updates...\n\n\n")
+        self.update_text.set_minimum_size(300, 300)
+
+        # Used for tracking download URL
+        self.zip_url = ""
+
+        # Do not allow closing the window during update
+        self.is_updating = False
+
+        self.update_button = QPushButton("Update")
+        self.update_button.set_enabled(False)
+        self.update_button.clicked.connect(self.on_update_button_clicked)
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.set_maximum(0)
+        self.progress_bar.set_text_visible(False)
+
+        self.vertical_layout.add_widget(self.update_text)
+        self.vertical_layout.add_widget(self.update_button)
+        self.vertical_layout.add_widget(self.progress_bar)
+
+        self.set_layout(self.vertical_layout)
+
+        # Network Setup
+        self.network_manager = QNetworkAccessManager(self)
+        self.rest_manager = QRestAccessManager(self.network_manager, self)
+
+        # Used so update checking isn't done too fast :)
+        self.min_wait_done = False
+        self.update_check_done = False
+
+        # Update checking logic
+        # Wait at least 1.5 seconds before showing update text
+        QTimer.single_shot(1500, self.set_min_wait_done)
+
+        req = QNetworkRequest(QUrl("https://api.github.com/repos/dannyyua/share-the-load/releases/latest"))
+        self.reply = self.rest_manager.get(req)
+        self.reply.finished.connect(self.handle_update_check_response)
+
+    def on_update_button_clicked(self):
+        selected_button = QMessageBox.warning(self, "Confirm Update", "Note: The app will restart during the update process. Please save all your work before continuing.\n\nAre you sure you want to continue?", QMessageBox.Yes | QMessageBox.No)
+        if selected_button == QMessageBox.Yes:
+            self.download_update(self.zip_url)
+
+    def try_update_text(self):
+        if self.min_wait_done and self.update_check_done:
+            self.update_text.set_text(f"A newer version is available!\n\nCurrent version: {self.current_version}\nLatest version: {self.new_version}")
+            self.update_button.set_enabled(True)
+            self.progress_bar.set_maximum(100)
+
+    def set_min_wait_done(self):
+        self.min_wait_done = True
+        self.try_update_text()
+
+    def set_update_check_done(self):
+        self.update_check_done = True
+        self.try_update_text()
+
+    def handle_update_check_response(self):
+        rest_reply = QRestReply(self.reply)
+        if rest_reply.is_success():
+            json = rest_reply.read_json()[0].object()
+            self.new_version = json["tag_name"]
+            self.zip_url = json["assets"][0]["browser_download_url"]
+            self.current_version = version
+
+            if float(self.new_version) > float(self.current_version):
+                self.set_update_check_done()
+            else:
+                self.update_text.set_text(f"You have the latest version.\n\nCurrent version: {self.current_version}\nLatest version: {self.new_version}")
+                self.progress_bar.set_maximum(100)
+        else:
+            QMessageBox.critical(self, "Error", f"An error occurred while checking for updates: {self.reply.error_text()}")
+            self.update_text.set_text("Update check failed.")
+            self.progress_bar.set_maximum(100)
+
+        self.reply.delete_later()
+
+    def download_update(self, zip_url):
+        self.is_updating = True
+        self.update_button.set_enabled(False)
+        self.progress_bar.set_maximum(0)
+
+        self.temp_dir = tempfile.mkdtemp()
+        print(self.temp_dir)
+        self.zip_path = f"{self.temp_dir}\\ShareTheLoad.zip"
+        self.file = QFile(self.zip_path)
+        if not self.file.open(QIODevice.WriteOnly):
+            QMessageBox.critical(self, "Error", f"Could not download file: {self.file.error_string()}")
+            self.is_updating = False
+            return
+
+        req = QNetworkRequest(QUrl(zip_url))
+        self.reply = self.network_manager.get(req)
+
+        self.reply.readyRead.connect(self.handle_incoming_download_data)
+        self.reply.finished.connect(self.handle_finished_download)
+
+    def handle_incoming_download_data(self):
+        self.file.write(self.reply.read_all())
+
+    # Extract downloaded ZIP file and run Updater.exe
+    def handle_finished_download(self):
+        if self.file:
+            self.file.close()
+
+        if self.reply.error() == QNetworkReply.NoError:
+            self.zip_extract_path = f"{self.temp_dir}\\ShareTheLoad"
+
+            with zipfile.ZipFile(self.zip_path, 'r') as zip_ref:
+                zip_ref.extractall(self.zip_extract_path)
+
+            updater_exe = os.path.join(self.zip_extract_path, "Updater.exe")
+
+            subprocess.Popen([updater_exe, "--update-dir", os.getcwd()])
+
+            QApplication.exit(0)
+            return
+        else:
+            self.update_button.set_enabled(True)
+            QMessageBox.critical(self, "Error", f"An error occurred during download: {self.reply.error_string()}")
+            self.is_updating = False
+
+        self.reply.delete_later()
+
+        self.progress_bar.set_maximum(100)
+
+    def close_event(self, event):
+        if self.is_updating:
+            event.ignore()
+        else:
+            event.accept()
