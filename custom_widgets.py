@@ -3,10 +3,11 @@ import subprocess
 import tempfile
 import zipfile
 
-from PySide6.QtWidgets import QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QHBoxLayout, QLabel, QMessageBox, QProgressBar, QToolButton, QVBoxLayout, QLineEdit, QPushButton
+from PySide6.QtWidgets import QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QGroupBox, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QMessageBox, QProgressBar, QToolButton, QVBoxLayout, QLineEdit, QPushButton
 from PySide6.QtCore import QFile, QIODevice, QModelIndex, QTimer, Qt, QAbstractTableModel, QIdentityProxyModel, QUrl
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QRestAccessManager, QNetworkRequest, QRestReply
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QFont, QIcon, QPainter
+from PySide6.QtCharts import QChart, QChartView, QPieSeries
 from __feature__ import snake_case # type: ignore
 from globals import version
 import db_helper as db
@@ -446,3 +447,91 @@ class UpdateCheckModal(QDialog):
             event.ignore()
         else:
             event.accept()
+
+class ResultsModal(QDialog):
+    def __init__(self, text, results_breakdown, payers_dict, parent=None):
+        super().__init__(parent)
+
+        self.save_requested = False
+        self.set_minimum_size(800, 600)
+
+        self.vertical_layout = QVBoxLayout(self)
+        self.vertical_layout.set_spacing(10)
+        self.chart_row = QHBoxLayout()
+        self.buttons_row = QHBoxLayout()
+
+        self.payers_box = QGroupBox("Select Payer")
+        self.chart_box = QGroupBox("Breakdown by Split")
+        self.payers_box_layout = QVBoxLayout(self.payers_box)
+        self.chart_box_layout = QVBoxLayout(self.chart_box)
+
+        self.body_text = QLabel(text)
+        self.body_text.set_font(QFont("Arial", 14))
+        self.body_text.set_margin(15)
+
+        # Populate payers list for chart breakdown, including payer ID data
+        self.payers_list = QListWidget()
+        for payer_id, payer_name in payers_dict.items():
+            new_item = QListWidgetItem(payer_name)
+            new_item.set_data(Qt.UserRole, payer_id)
+            self.payers_list.add_item(new_item)
+
+        # Calculate pie chart data
+        self.series_dict = {}
+        for (payer_id, split_name), amount in results_breakdown.items():
+            if payer_id not in self.series_dict:
+                self.series_dict[payer_id] = QPieSeries()
+            self.series_dict[payer_id].append(split_name, amount)
+
+        self.pie_chart = QChart()
+        for payer_id, series in self.series_dict.items():
+            for slice in series.slices():
+                slice.set_label(f"{slice.label()} (${slice.value():.2f}, {slice.percentage()*100:.1f}%)")
+                slice.set_label_visible()
+            self.pie_chart.add_series(series)
+            series.set_visible(False)
+        self.pie_chart.legend().hide()
+
+        self.chart_view = QChartView(self.pie_chart)
+        self.chart_view.set_render_hint(QPainter.RenderHint.Antialiasing)
+
+        self.payers_box_layout.add_widget(self.payers_list)
+        self.chart_box_layout.add_widget(self.chart_view)
+
+        self.chart_row.add_widget(self.payers_box)
+        self.chart_row.add_widget(self.chart_box)
+
+        # Buttons
+        self.ok_button = QPushButton("OK")
+        self.ok_button.clicked.connect(self.accept)
+        self.save_button = QPushButton("Save")
+        self.save_button.clicked.connect(self.on_save_clicked)
+        self.buttons_row.add_stretch()
+        self.buttons_row.add_widget(self.ok_button)
+        self.buttons_row.add_widget(self.save_button)
+        self.buttons_row.add_stretch()
+
+        self.vertical_layout.add_widget(self.body_text)
+        self.vertical_layout.add_layout(self.chart_row)
+        self.vertical_layout.add_layout(self.buttons_row)
+
+        # Update chart when payer selection changes
+        self.payers_list.itemSelectionChanged.connect(self.update_chart)
+
+        # Set 1st payer to display
+        self.payers_list.set_current_row(0)
+
+    # Show selected payer's breakdown in pie chart
+    def update_chart(self):
+        selected_item = self.payers_list.selected_items()[0]
+        payer_id = selected_item.data(Qt.UserRole)
+
+        for pid, series in self.series_dict.items():
+            series.set_visible(pid == payer_id)
+
+    def on_save_clicked(self):
+        self.save_requested = True
+        self.accept()
+
+    def is_save_requested(self):
+        return self.save_requested

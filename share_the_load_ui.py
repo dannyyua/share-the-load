@@ -10,7 +10,7 @@ from PySide6.QtGui import QKeySequence, QPalette, QColor, QIntValidator, QIcon
 from PySide6.QtCore import QThread, Qt
 from __feature__ import snake_case # type: ignore
 from csv_helper import get_csv_rows
-from custom_widgets import NoScrollComboBox, SplitsModal, SqlTableModel, SplitsModel, SplitsDropdownProxy, UpdateCheckModal
+from custom_widgets import NoScrollComboBox, SplitsModal, SqlTableModel, SplitsModel, SplitsDropdownProxy, UpdateCheckModal, ResultsModal
 import db_helper as db
 from enums import *
 
@@ -258,6 +258,7 @@ class ShareTheLoad(QMainWindow):
             self.set_status("Calculating...")
 
             self.results = {}
+            self.results_breakdown = {}
 
             for i in range(self.payments_table.row_count()):
                 self.payments_table.select_row(i)
@@ -281,15 +282,24 @@ class ShareTheLoad(QMainWindow):
 
                 if self.edit_mode == EditMode.DROPDOWN:
                     payer_splits = self.splits_dropdown_proxy.data(self.splits_dropdown_proxy.index(splits_widget.current_index(), 1), Qt.EditRole)
+                    split_name = self.splits_dropdown_proxy.data(self.splits_dropdown_proxy.index(splits_widget.current_index(), 2), Qt.EditRole)
                 elif self.edit_mode == EditMode.TEXT:
                     payer_splits = self.get_payer_splits_by_id(int(splits_widget.text()))
+                    split_name = self.get_split_name_by_id(int(splits_widget.text()))
                 elif self.edit_mode == EditMode.RADIO:
                     payer_splits = self.get_payer_splits_by_id(int(splits_widget.group.checked_id()))
+                    split_name = self.get_split_name_by_id(int(splits_widget.group.checked_id()))
 
                 for payer_id, percent in payer_splits:
+                    # Get amounts for each payer
                     if payer_id not in self.results:
                         self.results[payer_id] = 0
                     self.results[payer_id] += float(self.payments_table.item(i, amount_indx).text()) * (percent / 100)
+
+                    # Get amounts for each payer, broken down by split
+                    if (payer_id, split_name) not in self.results_breakdown:
+                        self.results_breakdown[(payer_id, split_name)] = 0
+                    self.results_breakdown[(payer_id, split_name)] += float(self.payments_table.item(i, amount_indx).text()) * (percent / 100)
 
                 QThread.msleep(50)
 
@@ -299,15 +309,17 @@ class ShareTheLoad(QMainWindow):
         self.dirty_payments = False
         self.save_results_button.set_enabled(True)
 
-        selection = QMessageBox.information(self, "Calculation Results", self.get_results_summary(), QMessageBox.Ok | QMessageBox.Save)
-        if selection == QMessageBox.Save:
+        # Display results to user
+        results_dialog = ResultsModal(self.get_results_summary(), self.results_breakdown, {id: self.get_payer_name_by_id(id) for id in self.results.keys()})
+        results_dialog.exec()
+        if results_dialog.is_save_requested():
             self.save_results()
 
     def get_payer_name_by_id(self, id):
         for row in range(self.payers_model.row_count()):
             if self.payers_model.data(self.payers_model.index(row, 0)) == id:
                 return self.payers_model.data(self.payers_model.index(row, 1))
-        return -1
+        return ""
     
     def get_payer_splits_by_id(self, id):
         for row in range(self.splits_model.row_count()):
@@ -315,6 +327,12 @@ class ShareTheLoad(QMainWindow):
             if self.splits_model.data(self.splits_model.index(row, 0)) == id:
                 return self.splits_model.data(self.splits_model.index(row, 1), Qt.EditRole)
         return []
+
+    def get_split_name_by_id(self, id):
+        for row in range(self.splits_model.row_count()):
+            if self.splits_model.data(self.splits_model.index(row, 0)) == id:
+                return self.splits_model.data(self.splits_model.index(row, 2))
+        return ""
     
     # Export CSV (from Payments table)
     def save_csv(self):
