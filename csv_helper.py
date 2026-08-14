@@ -2,7 +2,7 @@ import os
 import shutil
 import csv
 import re
-from globals import temp_file
+from shared import temp_file
 
 def get_csv_rows(path=temp_file):
     # TODO: Yield

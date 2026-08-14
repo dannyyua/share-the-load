@@ -9,7 +9,7 @@ from PySide6.QtWidgets import QApplication, QGraphicsOpacityEffect, QHBoxLayout,
 from PySide6.QtCore import QEventLoop, QPropertyAnimation, QTimer
 from PySide6.QtGui import QFont, Qt
 from __feature__ import snake_case # type: ignore
-from globals import version
+from shared import version, get_executing_dir
 
 parser = argparse.ArgumentParser(description="Custom updater for Share the Load. For advanced use only, pass the --update-dir argument to specify where to copy update files to.")
 parser.add_argument("--update-dir", type=str, required=True)
@@ -116,6 +116,7 @@ class Updater(QWidget):
 
     def begin_update(self):
         # Stage 1: Delete existing files
+        current_dir = get_executing_dir()
 
         # List of all files
         files_to_delete = [os.path.join(dirpath, f) for dirpath, _, files in os.walk(os.path.join(update_dir, "lib")) for f in files] + [os.path.join(update_dir, "ShareTheLoad.exe")]
@@ -133,7 +134,7 @@ class Updater(QWidget):
         # Stage 2: Copy over new files
         self.progress_bar.set_value(0)
         self.progress_text.set_text("Step 2/3: Copying new Share the Load files...")
-        files_to_copy = [(dirpath, f) for dirpath, _, files in os.walk(os.getcwd()) for f in files]
+        files_to_copy = [(dirpath, f) for dirpath, _, files in os.walk(current_dir) for f in files]
         num_files = len(files_to_copy)
         self.progress_bar.set_maximum(num_files)
 
@@ -142,7 +143,7 @@ class Updater(QWidget):
             self.progress_bar.set_value(self.progress_bar.value() + 1)
 
             orig_file = os.path.join(f[0], f[1])
-            dest_file = os.path.join(update_dir, os.path.relpath(orig_file, os.getcwd()))
+            dest_file = os.path.join(update_dir, os.path.relpath(orig_file, current_dir))
 
             os.makedirs(os.path.dirname(dest_file), exist_ok=True)
             shutil.copy(orig_file, dest_file)
@@ -159,7 +160,7 @@ class Updater(QWidget):
             self.current_file.set_text(f[1])
 
             orig_file = os.path.join(f[0], f[1])
-            dest_file = os.path.join(update_dir, os.path.relpath(orig_file, os.getcwd()))
+            dest_file = os.path.join(update_dir, os.path.relpath(orig_file, current_dir))
 
             if not os.path.isfile(dest_file) or not filecmp.cmp(orig_file, dest_file, shallow=False):
                 QMessageBox.critical(self, "Error", f"Error: Could not validate file {dest_file}. Please retry update or manually download the new update from the Share the Load GitHub page.")
@@ -213,9 +214,9 @@ class Updater(QWidget):
             # Trigger cleanup of update files
             pid = os.getpid()
             # Used to make sure we are in the correct directory and avoid deleting wrong files
-            zip_file = os.path.join(os.path.dirname(os.getcwd()), "ShareTheLoad.zip")
-            extracted_dir = os.getcwd()
-            bat_file = os.path.join(os.getcwd(), "cleanup.bat")
+            current_dir = get_executing_dir()
+            zip_file = os.path.join(os.path.dirname(current_dir), "ShareTheLoad.zip")
+            bat_file = os.path.join(current_dir, "cleanup.bat")
 
             bat_script = f"""
                 @echo off
@@ -230,7 +231,7 @@ class Updater(QWidget):
 
                 if exist "{zip_file}" (
                     del /f /q "{zip_file}"
-                    rmdir /s /q "{extracted_dir}"
+                    rmdir /s /q "{current_dir}"
                 )
             """
 

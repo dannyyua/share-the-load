@@ -2,6 +2,7 @@ import os
 import subprocess
 import tempfile
 import zipfile
+import packaging.version as vs
 
 from PySide6.QtWidgets import QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QGroupBox, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QMessageBox, QProgressBar, QToolButton, QVBoxLayout, QLineEdit, QPushButton
 from PySide6.QtCore import QFile, QIODevice, QModelIndex, QTimer, Qt, QAbstractTableModel, QIdentityProxyModel, QUrl
@@ -9,7 +10,7 @@ from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QRestAccessM
 from PySide6.QtGui import QFont, QIcon, QPainter
 from PySide6.QtCharts import QChart, QChartView, QPieSeries
 from __feature__ import snake_case # type: ignore
-from globals import version
+from shared import version, get_executing_dir
 import db_helper as db
 
 # QComboBox but scrolling will not change selection
@@ -381,7 +382,7 @@ class UpdateCheckModal(QDialog):
             self.zip_url = json["assets"][0]["browser_download_url"]
             self.current_version = version
 
-            if float(self.new_version) > float(self.current_version):
+            if vs.parse(self.new_version) > vs.parse(self.current_version):
                 self.set_update_check_done()
             else:
                 self.update_text.set_text(f"You have the latest version.\n\nCurrent version: {self.current_version}\nLatest version: {self.new_version}")
@@ -429,7 +430,7 @@ class UpdateCheckModal(QDialog):
 
             updater_exe = os.path.join(self.zip_extract_path, "Updater.exe")
 
-            subprocess.Popen([updater_exe, "--update-dir", os.getcwd()])
+            subprocess.Popen([updater_exe, "--update-dir", get_executing_dir()])
 
             QApplication.exit(0)
             return

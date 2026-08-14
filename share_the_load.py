@@ -8,7 +8,7 @@ import os
 from collections import defaultdict
 from csv_helper import transform_csv, calculate_amounts
 from db_scripts import *
-from globals import temp_file
+from shared import temp_file
 
 # Connect to DB
 conn = sqlite3.connect("data.db", autocommit=True)
