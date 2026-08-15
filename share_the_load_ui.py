@@ -542,6 +542,8 @@ class ShareTheLoad(QMainWindow):
             db.reset_data()
             self.payers_model.refresh()
             self.splits_model.refresh()
+            self.update_payers_buttons_state()
+            self.update_splits_buttons_state()
 
     # Just for fun :)
     def change_color(self, widget_type, init=False):
