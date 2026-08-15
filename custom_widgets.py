@@ -10,7 +10,7 @@ from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QRestAccessM
 from PySide6.QtGui import QFont, QIcon, QPainter
 from PySide6.QtCharts import QChart, QChartView, QPieSeries
 from __feature__ import snake_case # type: ignore
-from shared import version, get_executing_dir
+from shared import version, get_executing_dir, get_asset
 import db_helper as db
 
 # QComboBox but scrolling will not change selection
@@ -21,7 +21,7 @@ class NoScrollComboBox(QComboBox):
 
         # Add clear button to deselect Splits
         self.clear_btn = QToolButton(self)
-        self.clear_btn.set_icon(QIcon("circle-xmark-solid.png"))
+        self.clear_btn.set_icon(QIcon(get_asset("circle-xmark-solid.png")))
         self.clear_btn.set_cursor(Qt.CursorShape.ArrowCursor)
         self.clear_btn.set_style_sheet("background: transparent; border: none; padding: 0px;")
         
@@ -36,6 +36,9 @@ class NoScrollComboBox(QComboBox):
         self.clear_btn.clicked.connect(lambda: self.set_current_index(-1))
 
         self.currentIndexChanged.connect(self.update_clear_button)
+
+        # Init visibility
+        self.update_clear_button()
 
     def update_clear_button(self):
         # Show the clear button only when an item is selected

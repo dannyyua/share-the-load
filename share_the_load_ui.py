@@ -13,13 +13,14 @@ from csv_helper import get_csv_rows
 from custom_widgets import NoScrollComboBox, SplitsModal, SqlTableModel, SplitsModel, SplitsDropdownProxy, UpdateCheckModal, ResultsModal
 import db_helper as db
 from enums import *
+from shared import get_asset
 
 class ShareTheLoad(QMainWindow):
     def __init__(self, cursor):
         super().__init__()
         self.cursor = cursor
         self.set_window_title("Share the Load")
-        self.set_window_icon(QIcon("icon.png" if os.path.isfile("icon.png") else "lib/icon.png"))
+        self.set_window_icon(QIcon(get_asset("icon.png")))
 
         # Models
         self.payers_model = SqlTableModel()

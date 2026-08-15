@@ -5,7 +5,7 @@ main_a = Analysis(
     ['share_the_load_ui.py'],
     pathex=[],
     binaries=[],
-    datas=[('icon.png', '.')],
+    datas=[('assets', 'assets')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -33,7 +33,7 @@ main_exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     version='file_version_info.txt',
-    icon=['icon.ico'],
+    icon=['assets/icon.ico'],
     contents_directory='lib',
 )
 
