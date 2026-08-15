@@ -8,8 +8,14 @@ CREATE TABLE IF NOT EXISTS Payers (
 create_split_table = """
 CREATE TABLE IF NOT EXISTS Splits (
     split_id    INTEGER PRIMARY KEY AUTOINCREMENT,
-    name        TEXT COLLATE NOCASE UNIQUE
+    name        TEXT COLLATE NOCASE
 )
+"""
+
+create_split_unique_index = """
+CREATE UNIQUE INDEX IF NOT EXISTS unique_name_ignore_blank
+ON Splits(name)
+WHERE name <> ''
 """
 
 create_payer_split_table = """

@@ -11,6 +11,7 @@ def start_db():
 
     cursor.execute(create_payers_table)
     cursor.execute(create_split_table)
+    cursor.execute(create_split_unique_index)
     cursor.execute(create_payer_split_table)
 
     return cursor
